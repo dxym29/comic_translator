@@ -181,13 +181,37 @@ def _run_stage(stage: str, data: dict, project: dict) -> dict:
     if stage == "extract":
         return _ollama_extract(data)
     if stage == "remove":
-        raise RuntimeError("AI inpainting adapter is not installed yet. This stage is deliberately blocked rather than using OpenCV Telea as a fake AI replacement.")
+        from .image_inpainting import inpaint_with_lama
+        image_path = str(data.get("image_path", ""))
+        output_path = str(data.get("output_path") or (
+            get_data_dir() / "projects" / project["id"] / "cleaned" /
+            (Path(image_path).stem + "-cleaned.png")
+        ))
+        return inpaint_with_lama(image_path, data.get("regions", []), output_path,
+                                 float(data.get("padding_ratio", 0.18)))
     if stage == "translate":
         return _gemini_translate(data, project)
     if stage == "typeset":
-        raise RuntimeError("Myanmar shaping, bubble-aware fitting and image rendering adapter is the next implementation milestone.")
+        from .typesetting import render_page
+        output_path = str(data.get("output_path") or (
+            get_data_dir() / "projects" / project["id"] / "rendered" /
+            (Path(str(data.get("image_path", ""))).stem + "-mm.png")
+        ))
+        return render_page(
+            str(data.get("image_path", "")), data.get("regions", []), output_path,
+            font_family=str(data.get("font_family") or project.get("font_family") or "Noto Sans Myanmar"),
+            style=str(data.get("style") or project.get("typesetting_style") or "original_bubble"),
+            font_size=int(data.get("font_size", 30)),
+            text_color=str(data.get("text_color", "#171717")),
+            outline_color=str(data.get("outline_color", "#ffffff")),
+        )
     if stage == "export":
-        raise RuntimeError("CBZ/ZIP chapter export is the next implementation milestone.")
+        from .exporting import export_chapter
+        output_path = str(data.get("output_path") or (
+            get_data_dir() / "projects" / project["id"] / "exports" /
+            ("chapter-" + re.sub(r"[^0-9A-Za-z_-]", "_", str(data.get("chapter_number", "1"))) + ".cbz")
+        ))
+        return export_chapter(data.get("pages", []), output_path, str(data.get("title", "Comic Chapter")))
     raise ValueError("Unknown pipeline stage")
 
 
