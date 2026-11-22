@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from .projects import create_project, get_project, list_projects
+from .region_grouping import group_text_regions
 from .schemas import ProjectCreate
 from .storage import initialize_database
 
@@ -136,3 +137,16 @@ async def clean_preview(
         raise HTTPException(status_code=400, detail=f"Invalid text regions: {exc}") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Image cleanup failed: {exc}") from exc
+
+
+
+@app.post("/api/v1/images/group-regions")
+def group_regions(payload: dict):
+    regions = payload.get("regions")
+    if not isinstance(regions, list) or len(regions) > 1000:
+        raise HTTPException(status_code=400, detail="Regions must be a list containing at most 1000 items.")
+    try:
+        groups = group_text_regions(regions)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not group OCR regions: {exc}") from exc
+    return {"groups": groups, "count": len(groups)}
