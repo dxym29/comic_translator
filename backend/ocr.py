@@ -69,7 +69,7 @@ def recognize_image(image: np.ndarray, language: str = "en") -> list[dict]:
     regions: list[dict] = []
     for page in results or []:
         payload = _result_payload(page)
-        polygons = _as_list(payload.get("dt_polys"))
+        polygons = _as_list(payload.get("rec_polys")) or _as_list(payload.get("dt_polys"))
         texts = _as_list(payload.get("rec_texts"))
         scores = _as_list(payload.get("rec_scores"))
         boxes = _as_list(payload.get("rec_boxes"))
