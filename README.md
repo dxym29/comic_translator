@@ -20,7 +20,7 @@ A separate Windows desktop application for translating comic chapters into Myanm
 
 ## Not implemented yet
 
-Website-specific chapter fetching, automatic bubble grouping, reviewed/edited OCR boxes in the UI, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. OCR and cleanup are currently exposed as local preview API endpoints, not a finished user-facing workflow.
+Website-specific chapter fetching, automatic bubble grouping and manual editing of OCR text/region geometry in the UI, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. OCR and cleanup are currently exposed as local preview API endpoints, not a finished user-facing workflow.
 
 ## Hardware target
 
