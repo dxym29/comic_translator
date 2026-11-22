@@ -46,7 +46,7 @@ def capabilities():
         "translation": False,
         "typesetting": False,
         "export": False,
-        "message": "Project management is ready. Comic processing modules are next."
+        "message": "Project management, OCR preview, text grouping and cleanup preview are available. Fetching, translation, typesetting and export are next."
     }
 
 
