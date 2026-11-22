@@ -39,6 +39,20 @@
         <div class="section-heading"><div><span class="eyebrow">YOUR LIBRARY</span><h2>Projects</h2></div><span class="section-note">Saved locally on this computer</span></div>
         <div id="project-list" class="project-list"><div class="empty-state">Loading projects…</div></div>
       </section>
+      <section id="project-workspace" class="project-workspace" hidden>
+        <div class="section-heading"><div><span class="eyebrow">IMAGE PROCESSING TEST</span><h2 id="workspace-title">OCR Preview</h2></div><button id="close-workspace" class="secondary-button">Back to projects</button></div>
+        <div class="ocr-toolbar">
+          <label class="file-picker">Choose comic image<input id="comic-image" type="file" accept="image/*"></label>
+          <label>OCR language<select id="ocr-language"><option value="en">English</option><option value="japan">Japanese</option><option value="ch">Chinese</option><option value="korean">Korean</option><option value="th">Thai</option></select></label>
+          <button id="detect-text" class="primary-button" disabled>Detect text</button>
+          <button id="clean-image" class="secondary-button" disabled>Remove selected text</button>
+        </div>
+        <p id="ocr-message" class="ocr-message">Choose one image to test local OCR. The original file will not be modified.</p>
+        <div class="ocr-preview-grid">
+          <div class="preview-panel"><h3>Source / Cleaned preview</h3><img id="comic-preview" alt="Selected comic page preview" hidden><a id="download-cleaned" hidden download="cleaned-preview.png">Save cleaned preview</a></div>
+          <div class="regions-panel"><h3>Detected text regions <span id="region-count">0</span></h3><div id="region-list" class="region-list"><div class="empty-state">No OCR results yet.</div></div></div>
+        </div>
+      </section>
       <section class="info-grid">
         <article class="info-card"><span class="card-label">TRANSLATION ENGINE</span><h3>Gemini 3.1 Flash-Lite</h3><p>Primary model with Gemini 3.5 Flash-Lite quota fallback.</p><span class="tag">Next stage</span></article>
         <article class="info-card"><span class="card-label">LOCAL PROCESSING</span><h3>OCR & image cleanup</h3><p>CPU-first processing designed for this computer's hardware.</p><span class="tag">Next stage</span></article>
