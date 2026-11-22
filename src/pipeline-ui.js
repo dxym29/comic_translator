@@ -49,11 +49,28 @@
       list.append(button);
     }
   }
+  function previewImage(elementId, data) {
+    const image = $(elementId);
+    let path = "";
+    try {
+      const value = typeof data === "string" ? JSON.parse(data || "{}") : data;
+      path = value.image_path || value.pages?.[0]?.image_path || "";
+    } catch {}
+    if (!path || !projectId()) { image.hidden = true; image.removeAttribute("src"); return; }
+    image.src = api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
+      "/image?path=" + encodeURIComponent(path);
+    image.hidden = false;
+  }
+  function updatePreviews() {
+    previewImage("pipeline-input-image", $("pipeline-input").value);
+    previewImage("pipeline-output-image", $("pipeline-output").value);
+  }
   function showCurrent() {
     const item = history[current] || {};
     $("pipeline-input").value = json(item.input || defaultInput(current));
     $("pipeline-output").value = json(item.output || {});
     renderStages(history);
+    updatePreviews();
   }
   function defaultInput(stage) {
     if (stage === "fetch") return { url: (window.__comicSelectedProject && window.__comicSelectedProject.source_url) || "" };
@@ -107,6 +124,7 @@
       });
     history[stage] = result.run;
     $("pipeline-output").value = json(result.run.output);
+    updatePreviews();
     renderStages(history);
     message(labels[names.indexOf(stage)] + " ပြီးပါပြီ။ Output ကိုစစ်ပြီး နောက်တစ်ဆင့်ဆက်နိုင်ပါတယ်။");
     return result.run.output;
@@ -194,6 +212,8 @@
     message(paused ? "Pause requested. လက်ရှိ stage ပြီးတာနဲ့ ရပ်စောင့်မယ်။" : "Resume လုပ်ပြီး ဆက်လက်လုပ်ဆောင်နေသည်။");
   });
   $("pipeline-refresh").addEventListener("click", () => reload().catch(e => message(e.message, true)));
+  $("pipeline-input").addEventListener("input", updatePreviews);
+  $("pipeline-output").addEventListener("input", updatePreviews);
   $("pipeline-chapter").addEventListener("change", () => reload().catch(e => message(e.message, true)));
   window.comicPipeline = { reload, selectStage };
   renderStages();
