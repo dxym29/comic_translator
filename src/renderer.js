@@ -96,7 +96,10 @@ document.getElementById("cancel-project").addEventListener("click", () => dialog
 document.getElementById("cancel-project-secondary").addEventListener("click", () => dialog.close());
 document.getElementById("close-workspace").addEventListener("click", () => {
   workspace.hidden = true;
+  document.getElementById("pipeline-workbench").hidden = true;
   selectedProject = null;
+  window.__comicSelectedProject = null;
+  window.__comicSelectedProjectId = null;
 });
 
 form.addEventListener("submit", async (event) => {
