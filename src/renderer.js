@@ -47,6 +47,7 @@ createButton.addEventListener("click", () => {
 });
 
 document.getElementById("cancel-project").addEventListener("click", () => dialog.close());
+document.getElementById("cancel-project-secondary").addEventListener("click", () => dialog.close());
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
