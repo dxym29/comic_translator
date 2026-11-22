@@ -81,7 +81,7 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
         x = int(item.get("bubble_x", item.get("x", 0)))
         y = int(item.get("bubble_y", item.get("y", 0)))
         w = int(item.get("bubble_width", item.get("width", 0)))
-        h = int(item.get("bubble_height", item.get("height", 0))
+        h = int(item.get("bubble_height", item.get("height", 0)))
         if w < 4 or h < 4 or x < 0 or y < 0 or x + w > image.width or y + h > image.height:
             continue
         # Keep a small inset from the detected bubble/text box.
