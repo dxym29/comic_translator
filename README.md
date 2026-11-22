@@ -10,13 +10,17 @@ A separate Windows desktop application for translating comic chapters into Myanm
 - Per-project source/target language, source URL, font and lettering style settings.
 - Project folders for source images, cleaned images, rendered pages and exports.
 - Database tables prepared for chapters, pages, detected text regions and resumable jobs.
+- Optional CPU OCR integration using PaddleOCR PP-OCRv5 mobile detection/recognition models.
+- OCR preview API returns text-line boxes, recognized text and confidence values.
+- OpenCV Telea inpainting preview can remove detected text regions on a copy of the image.
+- OCR/image-processing dependencies are optional and are not required for the desktop shell to start.
 - Gemini model settings documented as the planned translation route:
   - Primary: Gemini 3.1 Flash-Lite
   - Quota fallback: Gemini 3.5 Flash-Lite
 
 ## Not implemented yet
 
-Website-specific chapter fetching, OCR/text detection, image text removal, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. The UI does not claim these functions are ready.
+Website-specific chapter fetching, automatic bubble grouping, reviewed/edited OCR boxes in the UI, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. OCR and cleanup are currently exposed as local preview API endpoints, not a finished user-facing workflow.
 
 ## Hardware target
 
@@ -35,7 +39,12 @@ python -m venv .venv
 # Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
+
+# Optional CPU OCR and image cleanup:
+pip install -r backend/requirements-ocr-cpu.txt
 ```
+
+PaddleOCR downloads its selected model files on first use. The current OCR setup selects PP-OCRv5 mobile models and CPU execution to limit resource use. See the [official PaddleOCR CPU installation guide](https://www.paddleocr.ai/latest/en/quick_start.html).
 
 Run the desktop application:
 
@@ -50,6 +59,12 @@ python -m backend
 ```
 
 The API listens only on `127.0.0.1:43128`.
+
+Local image preview endpoints:
+- `POST /api/v1/images/ocr-preview` — multipart fields `file` and optional `language` (`en`, `ch`, `japan`, `korean`, `th`).
+- `POST /api/v1/images/clean-preview` — multipart fields `file` and `regions_json` (the region list returned by OCR).
+
+OCR boxes are text-line detections, not guaranteed speech-bubble boundaries. Always review detections before cleaning an original image. Cleanup uses a basic OpenCV inpainting baseline; complex textures and overlapping artwork may need manual correction.
 
 ## Local data
 
