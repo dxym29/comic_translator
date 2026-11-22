@@ -87,8 +87,9 @@ def _ollama_extract(data: dict) -> dict:
     prompt = data.get("prompt") or (
         "Read every visible text item in this comic image. Return ONLY valid JSON: "
         '{"regions":[{"text":"exact original text","x":0,"y":0,"width":1,"height":1,'
+        '"bubble_x":0,"bubble_y":0,"bubble_width":1,"bubble_height":1,'
         '"reading_order":1,"kind":"speech|narration|sfx","confidence":0.0}]}. '
-        "Coordinates are pixel coordinates from the top-left. Do not translate."
+        "All coordinates are pixels from top-left. x/y/width/height tightly enclose the printed text for masking; bubble_x/y/width/height enclose the full speech balloon for lettering. For narration boxes use the panel box. Do not translate."
     )
     encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
     response = requests.post("http://127.0.0.1:11434/api/generate", json={
