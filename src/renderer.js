@@ -67,6 +67,9 @@ async function loadProjects() {
 
 function openProject(project) {
   selectedProject = project;
+  window.__comicSelectedProject = project;
+  window.__comicSelectedProjectId = project.id;
+  document.getElementById("pipeline-workbench").hidden = false;
   workspaceTitle.textContent = project.name + " · OCR Preview";
   workspace.hidden = false;
   workspace.scrollIntoView({ behavior: "smooth", block: "start" });
