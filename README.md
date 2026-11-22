@@ -2,36 +2,32 @@
 
 A separate Windows desktop application for translating comic chapters into Myanmar.
 
-## Project goals
+## Current implementation
 
-- Fetch comic chapters and source images from supported websites.
-- Detect text and speech-bubble regions locally.
-- Remove source text locally and retain the original artwork.
-- Translate detected text with Gemini:
+- Electron desktop shell with a local Python API.
+- Local SQLite database stored under the operating system's application-data directory.
+- Create and list local comic projects.
+- Per-project source/target language, source URL, font and lettering style settings.
+- Project folders for source images, cleaned images, rendered pages and exports.
+- Database tables prepared for chapters, pages, detected text regions and resumable jobs.
+- Gemini model settings documented as the planned translation route:
   - Primary: Gemini 3.1 Flash-Lite
   - Quota fallback: Gemini 3.5 Flash-Lite
-- Fit Myanmar text into the original regions and render translated pages.
-- Support both **Original Bubble Style** and **Professional Typesetting**.
-- Batch chapters with checkpoints, retries, resumable jobs, and export to CBZ/ZIP.
-- Keep the existing Webnovel Translator repository and its behavior completely untouched.
 
-## Initial architecture
+## Not implemented yet
 
-- **Electron**: Windows desktop shell and user interface.
-- **Python + FastAPI**: local processing service.
-- **SQLite**: projects, chapters, OCR results, job state, and cache.
-- **Local image pipeline**: OCR/text detection, inpainting, Myanmar text layout, and rendering.
-- **Gemini API**: translation only; API keys are configured locally and must never be committed.
+Website-specific chapter fetching, OCR/text detection, image text removal, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. The UI does not claim these functions are ready.
 
-The initial scaffold intentionally starts with a small health-check backend and a minimal desktop shell. OCR, image cleanup, fetching adapters, translation, and export will be added as separate tested modules.
+## Hardware target
 
-## Development
+Initial development targets CPU-first operation on an Intel Core i5-8265U with 16GB RAM and Intel UHD 620 integrated graphics. The intended initial image-processing concurrency is one image at a time.
 
-Requirements:
+## Development requirements
+
 - Node.js 20 or newer
 - Python 3.10 or newer
 
-Install dependencies:
+Install:
 
 ```bash
 npm install
@@ -41,26 +37,30 @@ python -m venv .venv
 pip install -r backend/requirements.txt
 ```
 
-Run the local Python API in one terminal:
-
-```bash
-npm run backend
-```
-
-Run the desktop shell in another terminal:
+Run the desktop application:
 
 ```bash
 npm start
 ```
 
-The desktop shell expects the local API at `http://127.0.0.1:43128`.
+Electron starts the local Python API automatically. For backend-only development:
+
+```bash
+python -m backend
+```
+
+The API listens only on `127.0.0.1:43128`.
+
+## Local data
+
+On Windows, application data is stored under `%LOCALAPPDATA%\ComicTranslator`. Set `COMIC_TRANSLATOR_DATA_DIR` to override the location.
 
 ## Security
 
-- Never commit Gemini API keys, cookies, session tokens, or downloaded copyrighted chapter images.
-- Local credentials will be stored using the operating system's secure credential storage in a later implementation step.
-- Fetching adapters must respect site access rules and user-provided permissions.
+- Never commit Gemini API keys, cookies, session tokens, or downloaded comic images.
+- Real API credentials will be configured locally in a later settings step.
+- Fetching adapters must respect website access rules and user permissions.
 
-## Current status
+## Project separation
 
-Scaffold only. The actual fetching, OCR, text removal, Gemini translation, Myanmar typesetting, and CBZ/ZIP export pipelines are not implemented yet.
+This repository is independent of `dxym29/t_app`. No changes are made to the Webnovel Translator.
