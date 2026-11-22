@@ -53,6 +53,23 @@
           <div class="regions-panel"><h3>Detected text regions <span id="region-count">0</span></h3><div id="region-list" class="region-list"><div class="empty-state">No OCR results yet.</div></div></div>
         </div>
       </section>
+      <section id="pipeline-workbench" class="pipeline-workbench" hidden>
+        <div class="section-heading"><div><span class="eyebrow">END-TO-END CHAPTER PIPELINE</span><h2>Translation workflow</h2></div><label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label></div>
+        <div class="pipeline-stage-list" id="pipeline-stage-list"></div>
+        <div class="pipeline-actions">
+          <button id="pipeline-run" class="primary-button">Run stage</button>
+          <button id="pipeline-save" class="secondary-button">Save manual output</button>
+          <button id="pipeline-next" class="secondary-button">Prepare next stage</button>
+          <button id="pipeline-auto" class="secondary-button">Auto run</button>
+          <button id="pipeline-pause" class="secondary-button" disabled>Pause</button>
+          <button id="pipeline-refresh" class="secondary-button">Reload history</button>
+        </div>
+        <p id="pipeline-message" class="ocr-message">Choose a stage. Review and edit its JSON input/output before continuing.</p>
+        <div class="pipeline-editors">
+          <label>Stage input (editable JSON)<textarea id="pipeline-input" spellcheck="false">{}</textarea></label>
+          <label>Stage output (editable JSON)<textarea id="pipeline-output" spellcheck="false">{}</textarea></label>
+        </div>
+      </section>
       <section class="info-grid">
         <article class="info-card"><span class="card-label">TRANSLATION ENGINE</span><h3>Gemini 3.1 Flash-Lite</h3><p>Primary model with Gemini 3.5 Flash-Lite quota fallback.</p><span class="tag">Next stage</span></article>
         <article class="info-card"><span class="card-label">LOCAL PROCESSING</span><h3>OCR & image cleanup</h3><p>CPU-first processing designed for this computer's hardware.</p><span class="tag">Next stage</span></article>
@@ -78,5 +95,6 @@
     </form>
   </dialog>
   <script src="./renderer.js"></script>
+  <script src="./pipeline-ui.js"></script>
 </body>
 </html>
