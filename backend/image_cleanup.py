@@ -4,22 +4,37 @@ import cv2
 import numpy as np
 
 
+def _iter_mask_regions(regions: list[dict]):
+    """Prefer original OCR line boxes over a merged group rectangle."""
+    for region in regions:
+        nested = region.get("mask_regions")
+        if isinstance(nested, list) and nested:
+            for line in nested:
+                if isinstance(line, dict):
+                    yield line
+        else:
+            yield region
+
+
 def build_text_mask(
     image_shape: tuple[int, ...],
     regions: list[dict],
-    padding_ratio: float = 0.18,
+    padding_ratio: float = 0.12,
 ) -> np.ndarray:
     height, width = image_shape[:2]
     mask = np.zeros((height, width), dtype=np.uint8)
-    for region in regions:
-        x = int(region.get("x", 0))
-        y = int(region.get("y", 0))
-        w = int(region.get("width", 0))
-        h = int(region.get("height", 0))
+    for region in _iter_mask_regions(regions):
+        try:
+            x = int(region.get("x", 0))
+            y = int(region.get("y", 0))
+            w = int(region.get("width", 0))
+            h = int(region.get("height", 0))
+        except (TypeError, ValueError):
+            continue
         if w <= 0 or h <= 0:
             continue
-        pad_x = max(2, int(w * padding_ratio))
-        pad_y = max(2, int(h * padding_ratio))
+        pad_x = max(1, int(w * padding_ratio))
+        pad_y = max(1, int(h * padding_ratio))
         x1, y1 = max(0, x - pad_x), max(0, y - pad_y)
         x2, y2 = min(width, x + w + pad_x), min(height, y + h + pad_y)
         if x2 > x1 and y2 > y1:
@@ -31,7 +46,7 @@ def remove_text(
     image: np.ndarray,
     regions: list[dict],
     inpaint_radius: float = 3.0,
-    padding_ratio: float = 0.18,
+    padding_ratio: float = 0.12,
 ) -> np.ndarray:
     if image is None or image.size == 0:
         raise ValueError("The source image is empty.")
