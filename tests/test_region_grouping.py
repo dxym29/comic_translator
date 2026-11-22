@@ -13,7 +13,7 @@ class RegionGroupingTests(unittest.TestCase):
         groups = group_text_regions(regions)
         self.assertEqual(len(groups), 2)
         self.assertEqual(groups[0]["region_indices"], [0, 1])
-        self.assertEqual(groups[0]["text"], "First\\nSecond")
+        self.assertEqual(groups[0]["text"], "First\nSecond")
 
     def test_empty_and_invalid_regions_are_ignored(self):
         self.assertEqual(group_text_regions([]), [])
