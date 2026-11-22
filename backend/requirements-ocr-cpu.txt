@@ -1,0 +1,9 @@
+# Install the CPU inference runtime first, then the OCR package.
+# Official PaddleOCR CPU installation instructions:
+# https://www.paddleocr.ai/latest/en/quick_start.html
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
+paddlepaddle==3.2.0
+paddleocr>=3.3,<4
+opencv-python-headless>=4.10,<5
+numpy>=1.26,<3
+python-multipart>=0.0.9,<1
