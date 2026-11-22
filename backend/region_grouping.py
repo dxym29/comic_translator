@@ -83,7 +83,7 @@ def group_text_regions(regions: list[dict]) -> list[dict]:
             "group_index": len(groups),
             "region_indices": [item["source_index"] for item in members],
             "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1,
-            "text": "\\n".join(item["text"] for item in members if item["text"]),
+            "text": "\n".join(item["text"] for item in members if item["text"]),
             "line_count": len(members),
             "confidence": (
                 sum(float(item["confidence"]) for item in members if item["confidence"] is not None)
