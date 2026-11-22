@@ -16,6 +16,9 @@ function startBackend() {
   backendProcess.on("error", (error) => {
     console.error("Could not start the local Python service:", error);
   });
+  backendProcess.on("exit", (code) => {
+    if (code !== null && code !== 0) console.error("Local Python service exited with code", code);
+  });
 }
 
 function createWindow() {
