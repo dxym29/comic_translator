@@ -209,28 +209,55 @@ function renderRegions() {
   }
 }
 
+function getEditedGroupGeometry(card, group) {
+  const edited = { ...group };
+  for (const input of card.querySelectorAll("[data-geometry]")) {
+    const key = input.dataset.geometry;
+    const value = Number(input.value);
+    if (!Number.isInteger(value) || (key === "width" || key === "height" ? value <= 0 : value < 0)) {
+      throw new Error("Text block coordinates must be non-negative whole numbers; width/height must be positive.");
+    }
+    edited[key] = value;
+  }
+  if (edited.x + edited.width > previewImage.naturalWidth || edited.y + edited.height > previewImage.naturalHeight) {
+    throw new Error("A text block extends outside the image. Adjust X/Y/width/height.");
+  }
+  return edited;
+}
+
+function buildLineMasks(group, editedGroup) {
+  const scaleX = editedGroup.width / Math.max(1, group.width);
+  const scaleY = editedGroup.height / Math.max(1, group.height);
+  const dx = editedGroup.x - group.x;
+  const dy = editedGroup.y - group.y;
+  return group.region_indices.map(index => detectedRegions[index]).filter(Boolean).map(line => {
+    const relativeX = line.x - group.x;
+    const relativeY = line.y - group.y;
+    return {
+      x: Math.round(editedGroup.x + relativeX * scaleX),
+      y: Math.round(editedGroup.y + relativeY * scaleY),
+      width: Math.max(1, Math.round(line.width * scaleX)),
+      height: Math.max(1, Math.round(line.height * scaleY))
+    };
+  });
+}
+
 cleanButton.addEventListener("click", async () => {
   if (!selectedFile || !detectedRegions.length) return;
   cleanButton.disabled = true;
-  ocrMessage.textContent = "Removing selected text with OpenCV inpainting…";
+  ocrMessage.textContent = "Removing selected text using individual OCR line boxes…";
   try {
     const selected = [...regionList.querySelectorAll(".region-card")]
       .filter(card => card.querySelector(".region-enabled").checked)
       .map(card => {
-        const original = detectedGroups[Number(card.dataset.groupIndex)];
-        const region = { ...original, text: card.querySelector(".region-edit-text").value };
-        for (const input of card.querySelectorAll("[data-geometry]")) {
-          const key = input.dataset.geometry;
-          const value = Number(input.value);
-          if (!Number.isInteger(value) || (key === "width" || key === "height" ? value <= 0 : value < 0)) {
-            throw new Error("Text block coordinates must be non-negative whole numbers; width/height must be positive.");
-          }
-          region[key] = value;
-        }
-        if (region.x + region.width > previewImage.naturalWidth || region.y + region.height > previewImage.naturalHeight) {
-          throw new Error("A text block extends outside the image. Adjust X/Y/width/height.");
-        }
-        return region;
+        const group = detectedGroups[Number(card.dataset.groupIndex)];
+        const editedGroup = getEditedGroupGeometry(card, group);
+        const maskRegions = buildLineMasks(group, editedGroup);
+        return {
+          ...editedGroup,
+          text: card.querySelector(".region-edit-text").value,
+          mask_regions: maskRegions.length ? maskRegions : [editedGroup]
+        };
       });
     if (!selected.length) throw new Error("Select at least one text block.");
     const body = new FormData();
@@ -247,7 +274,7 @@ cleanButton.addEventListener("click", async () => {
     previewImage.src = cleanedObjectUrl;
     downloadCleaned.href = cleanedObjectUrl;
     downloadCleaned.hidden = false;
-    ocrMessage.textContent = "Cleanup preview ready. The original image has not been changed.";
+    ocrMessage.textContent = "Cleanup preview ready. Original image is unchanged; only selected OCR line boxes were inpainted.";
   } catch (error) {
     ocrMessage.textContent = error.message;
   } finally {
