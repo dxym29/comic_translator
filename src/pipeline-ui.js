@@ -6,6 +6,8 @@
   if (!list) return;
   let current = "fetch";
   let history = {};
+  let activePage = null;
+  let renderedPages = [];
   let running = false;
   let paused = false;
   let stopRequested = false;
@@ -57,10 +59,10 @@
     if (stage === "fetch") return { url: (window.__comicSelectedProject && window.__comicSelectedProject.source_url) || "" };
     if (stage === "extract") {
       const pages = history.fetch?.output?.pages || [];
-      return { image_path: pages[0]?.image_path || "" };
+      return { image_path: activePage?.image_path || pages[0]?.image_path || "" };
     }
     if (stage === "remove") return {
-      image_path: history.extract?.output?.image_path || "",
+      image_path: activePage?.image_path || history.extract?.output?.image_path || "",
       regions: history.extract?.output?.regions || []
     };
     if (stage === "translate") return {
@@ -119,33 +121,56 @@
     renderStages(history);
     message("Manual output ကို သိမ်းပြီးပါပြီ။ နောက် stage မှာ ဒီ output ကို အသုံးပြုနိုင်ပါတယ်။");
   }
+  async function waitIfPaused() {
+    while (paused && !stopRequested) await new Promise(resolve => setTimeout(resolve, 250));
+    if (stopRequested) throw new Error("Paused by user");
+  }
   async function autoRun() {
     if (running) return;
-    running = true; paused = false; stopRequested = false;
+    running = true; paused = false; stopRequested = false; renderedPages = [];
     $("pipeline-auto").disabled = true;
     $("pipeline-pause").disabled = false;
     try {
-      for (let i = names.indexOf(current); i < names.length; i++) {
-        while (paused && !stopRequested) await new Promise(resolve => setTimeout(resolve, 250));
-        if (stopRequested) break;
-        current = names[i];
-        $("pipeline-input").value = json(defaultInput(current));
+      if (current === "fetch" || !history.fetch?.output?.pages?.length) {
+        current = "fetch";
+        $("pipeline-input").value = json(defaultInput("fetch"));
         showCurrent();
-        message("Auto mode: " + labels[i] + " လုပ်ဆောင်နေသည်…");
-        try { await runStage(current); }
-        catch (error) { message(error.message, true); throw error; }
-        if (i < names.length - 1) {
-          current = names[i + 1];
+        message("Auto mode: chapter ပုံများ ရယူနေသည်…");
+        const fetched = await runStage("fetch");
+        history.fetch = { ...(history.fetch || {}), output: fetched };
+      }
+      const pages = history.fetch?.output?.pages || [];
+      if (!pages.length) throw new Error("Fetch output ထဲမှာ pages မရှိပါ။");
+      const firstStage = Math.max(1, names.indexOf(current));
+      for (let p = 0; p < pages.length; p++) {
+        activePage = pages[p];
+        message("Page " + (p + 1) + "/" + pages.length + " ကို လုပ်ဆောင်နေသည်…");
+        for (let i = firstStage; i <= 4; i++) {
+          await waitIfPaused();
+          current = names[i];
           $("pipeline-input").value = json(defaultInput(current));
           $("pipeline-output").value = "{}";
-          renderStages(history);
+          showCurrent();
+          message("Page " + (p + 1) + "/" + pages.length + " · " + labels[i] + "…");
+          const output = await runStage(current);
+          if (i === 4 && output.image_path) renderedPages.push({ index: p + 1, image_path: output.image_path });
         }
       }
-      if (!stopRequested) message("Auto mode ပြီးပါပြီ။ Completed stages ကို ပြန်စစ်နိုင်ပါတယ်။");
+      await waitIfPaused();
+      current = "export";
+      $("pipeline-input").value = json({
+        title: window.__comicSelectedProject?.name || "Comic Chapter",
+        chapter_number: chapter(), pages: renderedPages
+      });
+      showCurrent();
+      message("CBZ export လုပ်ဆောင်နေသည်…");
+      await runStage("export");
+      message("Auto batch ပြီးပါပြီ။ " + renderedPages.length + " pages ကို export လုပ်ပြီးပါပြီ။");
     } catch (error) {
-      message("ရပ်သွားသည်: " + error.message, true);
+      if (stopRequested) message("Pause လုပ်ထားသည်။ ပြီးပြီးသား stage များကို သိမ်းထားပြီး နောက်မှ ပြန်စနိုင်သည်။");
+      else message("ရပ်သွားသည်: " + error.message, true);
     } finally {
-      running = false; paused = false;
+      running = false; paused = false; activePage = null;
       $("pipeline-auto").disabled = false;
       $("pipeline-pause").disabled = true;
       $("pipeline-pause").textContent = "Pause";
@@ -165,6 +190,7 @@
   $("pipeline-pause").addEventListener("click", () => {
     if (!running) return;
     paused = !paused;
+    if (paused) stopRequested = true;
     $("pipeline-pause").textContent = paused ? "Resume" : "Pause";
     message(paused ? "Pause requested. လက်ရှိ stage ပြီးတာနဲ့ ရပ်စောင့်မယ်။" : "Resume လုပ်ပြီး ဆက်လက်လုပ်ဆောင်နေသည်။");
   });
