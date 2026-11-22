@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+import base64
+import json
+import os
+import re
+import sqlite3
+import time
+import uuid
+from pathlib import Path
+from typing import Any
+from urllib.parse import urljoin, urlparse
+
+import requests
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from .storage import connect, get_data_dir
+
+router = APIRouter(prefix="/api/v1", tags=["pipeline"])
+STAGES = ["fetch", "extract", "remove", "translate", "typeset", "export"]
+
+
+class StageInput(BaseModel):
+    input: dict[str, Any] = Field(default_factory=dict)
+    output: dict[str, Any] | None = None
+    manual: bool = False
+
+
+class StageEdit(BaseModel):
+    output: dict[str, Any]
+
+
+def _ensure_table() -> None:
+    with connect() as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS stage_runs (
+            id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            chapter_id TEXT, stage TEXT NOT NULL, status TEXT NOT NULL,
+            input_json TEXT NOT NULL, output_json TEXT NOT NULL DEFAULT '{}',
+            manual INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_stage_project ON stage_runs(project_id, chapter_id, stage)")
+
+
+def _project(project_id: str) -> dict:
+    with connect() as db:
+        row = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Project not found")
+    return dict(row)
+
+
+def _save(project_id: str, chapter_id: str | None, stage: str, status: str,
+          input_data: dict, output_data: dict, manual: bool = False, error: str = "") -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    run_id = str(uuid.uuid4())
+    with connect() as db:
+        db.execute("""INSERT INTO stage_runs
+          (id,project_id,chapter_id,stage,status,input_json,output_json,manual,error,created_at,updated_at)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+          (run_id, project_id, chapter_id, stage, status,
+           json.dumps(input_data, ensure_ascii=False), json.dumps(output_data, ensure_ascii=False),
+           int(manual), error, now, now))
+    return {"id": run_id, "stage": stage, "status": status, "input": input_data,
+            "output": output_data, "manual": manual, "error": error, "updated_at": now}
+
+
+def _latest(project_id: str, chapter_id: str | None = None) -> list[dict]:
+    with connect() as db:
+        rows = db.execute("""SELECT s.* FROM stage_runs s
+          JOIN (SELECT stage, MAX(created_at) AS newest FROM stage_runs
+          WHERE project_id=? AND chapter_id IS ? GROUP BY stage) x
+          ON s.stage=x.stage AND s.created_at=x.newest
+          WHERE s.project_id=? AND s.chapter_id IS ? ORDER BY s.created_at""",
+          (project_id, chapter_id, project_id, chapter_id)).fetchall()
+    return [{"id": r["id"], "stage": r["stage"], "status": r["status"],
+             "input": json.loads(r["input_json"]), "output": json.loads(r["output_json"]),
+             "manual": bool(r["manual"]), "error": r["error"], "updated_at": r["updated_at"]}
+            for r in rows]
+
+
+def _ollama_extract(data: dict) -> dict:
+    image_path = Path(str(data.get("image_path", ""))).expanduser()
+    if not image_path.is_file():
+        raise ValueError("extract stage requires a valid image_path")
+    model = os.getenv("COMIC_OLLAMA_VISION_MODEL", "qwen2.5vl:3b")
+    prompt = data.get("prompt") or (
+        "Read every visible text item in this comic image. Return ONLY valid JSON: "
+        '{"regions":[{"text":"exact original text","x":0,"y":0,"width":1,"height":1,'
+        '"reading_order":1,"kind":"speech|narration|sfx","confidence":0.0}]}. '
+        "Coordinates are pixel coordinates from the top-left. Do not translate."
+    )
+    encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    response = requests.post("http://127.0.0.1:11434/api/generate", json={
+        "model": model, "prompt": prompt, "images": [encoded], "stream": False,
+        "format": "json", "options": {"temperature": 0}
+    }, timeout=(10, 300))
+    response.raise_for_status()
+    raw = response.json().get("response", "")
+    parsed = json.loads(raw)
+    regions = parsed.get("regions", [])
+    if not isinstance(regions, list):
+        raise ValueError("Ollama response did not contain a regions array")
+    return {"model": model, "image_path": str(image_path), "regions": regions, "raw": raw}
+
+
+def _gemini_translate(data: dict, project: dict) -> dict:
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise ValueError("Set GEMINI_API_KEY in the local environment before translation")
+    items = data.get("regions")
+    if not isinstance(items, list) or not items:
+        raise ValueError("translate stage requires a non-empty regions array")
+    source = project["source_language"]
+    target = project["target_language"]
+    prompt = ("Translate the following comic dialogue from " + source + " to " + target +
+              ". Preserve region IDs and return ONLY JSON {translations:[{id,text}]}. "
+              "Keep character names consistent and concise for speech bubbles.\n" +
+              json.dumps(items, ensure_ascii=False))
+    models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
+    attempts = []
+    for model in models:
+        response = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+            json={"contents": [{"parts": [{"text": prompt}]}],
+                  "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2}},
+            timeout=120)
+        if response.ok:
+            body = response.json()
+            text = body["candidates"][0]["content"]["parts"][0]["text"]
+            result = json.loads(text)
+            return {"model": model, "fallback_used": model != models[0],
+                    "translations": result.get("translations", []), "attempts": attempts}
+        detail = response.text[:1000]
+        attempts.append({"model": model, "status": response.status_code, "detail": detail})
+        quota = response.status_code == 429 or "quota" in detail.lower() or "resource_exhausted" in detail.lower()
+        if model == models[0] and quota:
+            continue
+        raise RuntimeError(f"{model} failed ({response.status_code}); fallback is quota-only. {detail}")
+    raise RuntimeError("Both Gemini models are quota limited: " + json.dumps(attempts))
+
+
+def _run_stage(stage: str, data: dict, project: dict) -> dict:
+    if stage == "fetch":
+        url = str(data.get("url", "")).strip()
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("fetch stage requires an http(s) chapter URL")
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0 ComicTranslator/0.1"},
+                                timeout=30)
+        response.raise_for_status()
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.text, "html.parser")
+        base = url
+        candidates = []
+        for tag in soup.select("img[src], img[data-src], source[srcset]"):
+            src = tag.get("src") or tag.get("data-src") or tag.get("srcset", "").split(" ")[0]
+            absolute = urljoin(base, src)
+            if urlparse(absolute).scheme in ("http", "https") and absolute not in candidates:
+                candidates.append(absolute)
+        if not candidates:
+            raise ValueError("No image URLs found. This website may require a site-specific adapter or login.")
+        folder = get_data_dir() / "projects" / project["id"] / "source"
+        folder.mkdir(parents=True, exist_ok=True)
+        saved = []
+        for index, image_url in enumerate(candidates, 1):
+            img = requests.get(image_url, headers={"User-Agent": "Mozilla/5.0", "Referer": url}, timeout=40)
+            img.raise_for_status()
+            if not img.headers.get("content-type", "").startswith("image/"):
+                continue
+            suffix = Path(urlparse(image_url).path).suffix.lower()
+            if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+                suffix = ".jpg"
+            path = folder / f"page-{index:04d}{suffix}"
+            path.write_bytes(img.content)
+            saved.append({"index": index, "url": image_url, "image_path": str(path)})
+        if not saved:
+            raise ValueError("The page contained image tags but no downloadable image files.")
+        return {"chapter_url": url, "pages": saved, "count": len(saved),
+                "note": "Generic image extraction only; sites with scripts, protected media or login need a dedicated adapter."}
+    if stage == "extract":
+        return _ollama_extract(data)
+    if stage == "remove":
+        raise RuntimeError("AI inpainting adapter is not installed yet. This stage is deliberately blocked rather than using OpenCV Telea as a fake AI replacement.")
+    if stage == "translate":
+        return _gemini_translate(data, project)
+    if stage == "typeset":
+        raise RuntimeError("Myanmar shaping, bubble-aware fitting and image rendering adapter is the next implementation milestone.")
+    if stage == "export":
+        raise RuntimeError("CBZ/ZIP chapter export is the next implementation milestone.")
+    raise ValueError("Unknown pipeline stage")
+
+
+@router.get("/projects/{project_id}/pipeline")
+def pipeline_state(project_id: str, chapter_id: str | None = None):
+    _ensure_table()
+    _project(project_id)
+    latest = {item["stage"]: item for item in _latest(project_id, chapter_id)}
+    return {"stages": [{"name": stage, "status": latest.get(stage, {}).get("status", "pending"),
+                         "input": latest.get(stage, {}).get("input", {}),
+                         "output": latest.get(stage, {}).get("output", {}),
+                         "manual": latest.get(stage, {}).get("manual", False),
+                         "error": latest.get(stage, {}).get("error", "")}
+                        for stage in STAGES]}
+
+
+@router.post("/projects/{project_id}/pipeline/{stage}/run")
+def run_pipeline_stage(project_id: str, stage: str, payload: StageInput, chapter_id: str | None = None):
+    _ensure_table()
+    project = _project(project_id)
+    if stage not in STAGES:
+        raise HTTPException(404, "Unknown pipeline stage")
+    try:
+        output = _run_stage(stage, payload.input, project)
+        return {"run": _save(project_id, chapter_id, stage, "completed", payload.input,
+                             output, payload.manual)}
+    except Exception as exc:
+        _save(project_id, chapter_id, stage, "failed", payload.input, {}, payload.manual, str(exc))
+        raise HTTPException(422, detail=str(exc)) from exc
+
+
+@router.put("/projects/{project_id}/pipeline/{stage}/output")
+def edit_pipeline_output(project_id: str, stage: str, payload: StageEdit, chapter_id: str | None = None):
+    _ensure_table()
+    _project(project_id)
+    if stage not in STAGES:
+        raise HTTPException(404, "Unknown pipeline stage")
+    previous = next((x for x in reversed(_latest(project_id, chapter_id)) if x["stage"] == stage), None)
+    source_input = previous["input"] if previous else {}
+    saved = _save(project_id, chapter_id, stage, "reviewed", source_input, payload.output, True)
+    return {"run": saved, "message": "Manual output saved as the input source for the next stage."}
