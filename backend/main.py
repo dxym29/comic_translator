@@ -1,9 +1,12 @@
 from contextlib import asynccontextmanager
 import importlib.util
 import json
+import mimetypes
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -68,6 +71,22 @@ def projects_create(payload: ProjectCreate):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not create project: {exc}") from exc
 
+
+
+@app.get("/api/v1/projects/{project_id}/image")
+def project_image(project_id: str, path: str):
+    project = get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    root = Path(project["storage_path"]).resolve()
+    candidate = Path(path).expanduser().resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Image path is outside this project folder")
+    if not candidate.is_file() or candidate.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        raise HTTPException(status_code=404, detail="Project image not found")
+    return FileResponse(candidate, media_type=mimetypes.guess_type(candidate.name)[0] or "application/octet-stream")
 
 @app.get("/api/v1/projects/{project_id}")
 def project_detail(project_id: str):
