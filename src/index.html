@@ -65,6 +65,10 @@
           <button id="pipeline-refresh" class="secondary-button">Reload history</button>
         </div>
         <p id="pipeline-message" class="ocr-message">Choose a stage. Review and edit its JSON input/output before continuing.</p>
+        <div class="pipeline-image-previews">
+          <div><strong>Input image</strong><img id="pipeline-input-image" alt="Pipeline input image" hidden></div>
+          <div><strong>Output image</strong><img id="pipeline-output-image" alt="Pipeline output image" hidden></div>
+        </div>
         <div class="pipeline-editors">
           <label>Stage input (editable JSON)<textarea id="pipeline-input" spellcheck="false">{}</textarea></label>
           <label>Stage output (editable JSON)<textarea id="pipeline-output" spellcheck="false">{}</textarea></label>
