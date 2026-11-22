@@ -46,12 +46,12 @@ def capabilities():
         "fetch_generic_images": True,
         "ollama_vision_extraction": True,
         "gemini_translation": True,
-        "ai_text_removal": False,
-        "typesetting": False,
-        "export": False,
+        "ai_text_removal": importlib.util.find_spec("simple_lama_inpainting") is not None,
+        "typesetting": importlib.util.find_spec("PIL") is not None,
+        "export": True,
         "paddleocr_preview": importlib.util.find_spec("paddleocr") is not None,
         "opencv_preview_cleanup": importlib.util.find_spec("cv2") is not None,
-        "message": "Pipeline stage history, generic image fetching, Ollama vision extraction and Gemini translation adapters are available. AI inpainting, Myanmar typesetting and CBZ/ZIP export remain in development."
+        "message": "Pipeline stages are implemented. LaMa AI inpainting requires the optional CPU package and model weights; Myanmar rendering requires a supported installed font."
     }
 
 
