@@ -1,9 +1,8 @@
 from contextlib import asynccontextmanager
 import importlib.util
 import json
+from typing import Any
 
-import cv2
-import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -75,7 +74,12 @@ def project_detail(project_id: str):
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
 
-async def _read_image(upload: UploadFile) -> np.ndarray:
+async def _read_image(upload: UploadFile) -> Any:
+    try:
+        import cv2
+        import numpy as np
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="Install the optional CPU image-processing requirements first.") from exc
     if upload.content_type and not upload.content_type.startswith("image/"):
         raise HTTPException(status_code=415, detail="Please upload an image file.")
     data = await upload.read(MAX_IMAGE_BYTES + 1)
@@ -118,6 +122,7 @@ async def clean_preview(
 ):
     image = await _read_image(file)
     try:
+        import cv2
         regions = json.loads(regions_json)
         if not isinstance(regions, list) or len(regions) > 1000:
             raise ValueError("Regions must be a list containing at most 1000 items.")
