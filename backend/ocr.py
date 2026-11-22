@@ -39,6 +39,14 @@ def _result_payload(result: Any) -> dict:
     return nested if isinstance(nested, dict) else payload
 
 
+def _as_list(value: Any) -> list:
+    if value is None:
+        return []
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return list(value)
+
+
 def _box_from_polygon(polygon: Any) -> tuple[int, int, int, int] | None:
     points = np.asarray(polygon, dtype=float).reshape(-1, 2)
     if points.size == 0:
@@ -61,10 +69,10 @@ def recognize_image(image: np.ndarray, language: str = "en") -> list[dict]:
     regions: list[dict] = []
     for page in results or []:
         payload = _result_payload(page)
-        polygons = payload.get("dt_polys") or []
-        texts = payload.get("rec_texts") or []
-        scores = payload.get("rec_scores") or []
-        boxes = payload.get("rec_boxes") or []
+        polygons = _as_list(payload.get("dt_polys"))
+        texts = _as_list(payload.get("rec_texts"))
+        scores = _as_list(payload.get("rec_scores"))
+        boxes = _as_list(payload.get("rec_boxes"))
 
         count = max(len(polygons), len(boxes), len(texts))
         for index in range(count):
