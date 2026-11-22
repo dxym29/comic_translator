@@ -190,7 +190,6 @@
   $("pipeline-pause").addEventListener("click", () => {
     if (!running) return;
     paused = !paused;
-    if (paused) stopRequested = true;
     $("pipeline-pause").textContent = paused ? "Resume" : "Pause";
     message(paused ? "Pause requested. လက်ရှိ stage ပြီးတာနဲ့ ရပ်စောင့်မယ်။" : "Resume လုပ်ပြီး ဆက်လက်လုပ်ဆောင်နေသည်။");
   });
