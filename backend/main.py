@@ -11,6 +11,7 @@ from .projects import create_project, get_project, list_projects
 from .region_grouping import group_text_regions
 from .schemas import ProjectCreate
 from .storage import initialize_database
+from .pipeline import router as pipeline_router
 
 
 @asynccontextmanager
@@ -19,20 +20,21 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Comic Translator Local API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Comic Translator Local API", version="0.3.0", lifespan=lifespan)
+app.include_router(pipeline_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["null", "file://"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["Content-Type"],
 )
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "comic-translator-local", "version": "0.2.0"}
+    return {"status": "ok", "service": "comic-translator-local", "version": "0.3.0"}
 
 
 @app.get("/api/v1/capabilities")
@@ -40,13 +42,16 @@ def capabilities():
     return {
         "projects": True,
         "database": True,
-        "fetch": False,
-        "ocr": importlib.util.find_spec("paddleocr") is not None,
-        "text_removal": importlib.util.find_spec("cv2") is not None,
-        "translation": False,
+        "pipeline_stage_history": True,
+        "fetch_generic_images": True,
+        "ollama_vision_extraction": True,
+        "gemini_translation": True,
+        "ai_text_removal": False,
         "typesetting": False,
         "export": False,
-        "message": "Project management, OCR preview, text grouping and cleanup preview are available. Fetching, translation, typesetting and export are next."
+        "paddleocr_preview": importlib.util.find_spec("paddleocr") is not None,
+        "opencv_preview_cleanup": importlib.util.find_spec("cv2") is not None,
+        "message": "Pipeline stage history, generic image fetching, Ollama vision extraction and Gemini translation adapters are available. AI inpainting, Myanmar typesetting and CBZ/ZIP export remain in development."
     }
 
 
@@ -93,10 +98,7 @@ async def _read_image(upload: UploadFile) -> Any:
 
 
 @app.post("/api/v1/images/ocr-preview")
-async def ocr_preview(
-    file: UploadFile = File(...),
-    language: str = Form("en"),
-):
+async def ocr_preview(file: UploadFile = File(...), language: str = Form("en")):
     image = await _read_image(file)
     try:
         from .ocr import recognize_image
@@ -107,20 +109,13 @@ async def ocr_preview(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"OCR failed: {exc}") from exc
-    return {
-        "width": int(image.shape[1]),
-        "height": int(image.shape[0]),
-        "regions": regions,
-        "count": len(regions),
-        "note": "OCR boxes are text-line detections. Review them before removing artwork."
-    }
+    return {"width": int(image.shape[1]), "height": int(image.shape[0]),
+            "regions": regions, "count": len(regions),
+            "note": "OCR boxes are text-line detections. Review them before cleaning."}
 
 
 @app.post("/api/v1/images/clean-preview")
-async def clean_preview(
-    file: UploadFile = File(...),
-    regions_json: str = Form(...),
-):
+async def clean_preview(file: UploadFile = File(...), regions_json: str = Form(...)):
     image = await _read_image(file)
     try:
         import cv2
@@ -139,7 +134,6 @@ async def clean_preview(
         raise HTTPException(status_code=500, detail=f"Image cleanup failed: {exc}") from exc
 
 
-
 @app.post("/api/v1/images/group-regions")
 def group_regions(payload: dict):
     regions = payload.get("regions")
@@ -148,5 +142,5 @@ def group_regions(payload: dict):
     try:
         groups = group_text_regions(regions)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Could not group OCR regions: {exc}") from exc
+        raise HTTPException(status_code=400, detail=f"Could not group OCR text lines: {exc}") from exc
     return {"groups": groups, "count": len(groups)}
