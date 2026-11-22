@@ -19,6 +19,7 @@ const downloadCleaned = document.getElementById("download-cleaned");
 let selectedProject = null;
 let selectedFile = null;
 let detectedRegions = [];
+let detectedGroups = [];
 let sourceObjectUrl = null;
 let cleanedObjectUrl = null;
 
@@ -73,6 +74,7 @@ function openProject(project) {
 
 function resetOcrResults() {
   detectedRegions = [];
+  detectedGroups = [];
   regionCount.textContent = "0";
   regionList.innerHTML = '<div class="empty-state">No OCR results yet.</div>';
   cleanButton.disabled = true;
@@ -143,9 +145,17 @@ detectButton.addEventListener("click", async () => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || "OCR request failed");
     detectedRegions = result.regions;
+    const groupedResponse = await fetch(window.comicTranslator.apiBaseUrl + "/api/v1/images/group-regions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regions: detectedRegions })
+    });
+    const grouped = await groupedResponse.json();
+    if (!groupedResponse.ok) throw new Error(grouped.detail || "Could not group OCR text lines");
+    detectedGroups = grouped.groups;
     renderRegions();
-    ocrMessage.textContent = `Detected ${result.count} text lines in ${result.width} × ${result.height} image. Review the boxes before cleanup.`;
-    cleanButton.disabled = detectedRegions.length === 0;
+    ocrMessage.textContent = `Detected ${result.count} text lines and suggested ${grouped.count} text blocks in ${result.width} × ${result.height} image. Review/edit each block before cleanup.`;
+    cleanButton.disabled = detectedGroups.length === 0;
   } catch (error) {
     ocrMessage.textContent = error.message;
   } finally {
@@ -154,27 +164,48 @@ detectButton.addEventListener("click", async () => {
 });
 
 function renderRegions() {
-  regionCount.textContent = String(detectedRegions.length);
+  regionCount.textContent = String(detectedGroups.length);
   regionList.innerHTML = "";
-  if (!detectedRegions.length) {
+  if (!detectedGroups.length) {
     regionList.innerHTML = '<div class="empty-state">No text detected in this image.</div>';
     return;
   }
-  for (const region of detectedRegions) {
-    const row = document.createElement("label");
-    row.className = "region-row";
+  for (const group of detectedGroups) {
+    const card = document.createElement("article");
+    card.className = "region-card";
+    card.dataset.groupIndex = String(group.group_index);
+    const header = document.createElement("label");
+    header.className = "region-select";
     const include = document.createElement("input");
     include.type = "checkbox";
     include.checked = true;
     include.className = "region-enabled";
-    const text = document.createElement("span");
-    text.className = "region-text";
-    text.textContent = region.text || "(no recognized text)";
-    const score = document.createElement("small");
-    score.textContent = region.confidence == null ? "—" : `${Math.round(region.confidence * 100)}%`;
-    row.append(include, text, score);
-    row.dataset.regionIndex = String(region.index);
-    regionList.append(row);
+    const heading = document.createElement("strong");
+    heading.textContent = `Text block ${group.group_index + 1} · ${group.line_count} line(s)`;
+    header.append(include, heading);
+    const text = document.createElement("textarea");
+    text.className = "region-edit-text";
+    text.value = group.text;
+    text.rows = Math.min(5, Math.max(2, group.line_count));
+    const geometry = document.createElement("div");
+    geometry.className = "region-geometry";
+    for (const [key, label] of [["x","X"],["y","Y"],["width","W"],["height","H"]]) {
+      const field = document.createElement("label");
+      field.textContent = label;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = key === "width" || key === "height" ? "1" : "0";
+      input.step = "1";
+      input.value = String(group[key]);
+      input.dataset.geometry = key;
+      field.append(input);
+      geometry.append(field);
+    }
+    const confidence = document.createElement("small");
+    confidence.className = "region-confidence";
+    confidence.textContent = group.confidence == null ? "Confidence unavailable" : `OCR confidence: ${Math.round(group.confidence * 100)}%`;
+    card.append(header, text, geometry, confidence);
+    regionList.append(card);
   }
 }
 
@@ -183,10 +214,25 @@ cleanButton.addEventListener("click", async () => {
   cleanButton.disabled = true;
   ocrMessage.textContent = "Removing selected text with OpenCV inpainting…";
   try {
-    const selected = [...regionList.querySelectorAll(".region-row")]
-      .filter(row => row.querySelector(".region-enabled").checked)
-      .map(row => detectedRegions[Number(row.dataset.regionIndex)]);
-    if (!selected.length) throw new Error("Select at least one detected text region.");
+    const selected = [...regionList.querySelectorAll(".region-card")]
+      .filter(card => card.querySelector(".region-enabled").checked)
+      .map(card => {
+        const original = detectedGroups[Number(card.dataset.groupIndex)];
+        const region = { ...original, text: card.querySelector(".region-edit-text").value };
+        for (const input of card.querySelectorAll("[data-geometry]")) {
+          const key = input.dataset.geometry;
+          const value = Number(input.value);
+          if (!Number.isInteger(value) || (key === "width" || key === "height" ? value <= 0 : value < 0)) {
+            throw new Error("Text block coordinates must be non-negative whole numbers; width/height must be positive.");
+          }
+          region[key] = value;
+        }
+        if (region.x + region.width > previewImage.naturalWidth || region.y + region.height > previewImage.naturalHeight) {
+          throw new Error("A text block extends outside the image. Adjust X/Y/width/height.");
+        }
+        return region;
+      });
+    if (!selected.length) throw new Error("Select at least one text block.");
     const body = new FormData();
     body.append("file", selectedFile);
     body.append("regions_json", JSON.stringify(selected));
