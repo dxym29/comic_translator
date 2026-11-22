@@ -82,3 +82,51 @@ On Windows, application data is stored under `%LOCALAPPDATA%\ComicTranslator`. S
 ## Project separation
 
 This repository is independent of `dxym29/t_app`. No changes are made to the Webnovel Translator.
+
+## End-to-end pipeline
+
+The project workspace now exposes six persisted stages: Fetch, Ollama Vision extraction,
+LaMa AI inpainting, Gemini translation, Myanmar typesetting, and CBZ/ZIP export.
+Each stage has editable JSON input/output, a manual-output save action, and an automatic
+one-page-at-a-time chapter runner. Stage results are stored in SQLite so a reviewed result
+can be reused without rerunning earlier stages.
+
+### Install the core desktop backend
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+Install and start Ollama, then pull a compatible vision model:
+
+```bash
+ollama pull qwen2.5vl:3b
+```
+
+Set `GEMINI_API_KEY` in the environment before running the translation stage.
+
+### Optional CPU LaMa inpainting
+
+Text removal uses a real LaMa model adapter, not the OpenCV Telea preview operation.
+It is optional because its PyTorch CPU runtime and model weights are large:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install -r backend/requirements-lama-cpu.txt
+```
+
+The first LaMa run downloads model weights and can be slow on an i5-8265U CPU.
+Install the selected Myanmar font in Windows. Pillow's RAQM text layout support is
+used when available; verify Myanmar shaping on the installed Pillow build before
+processing a full chapter.
+
+### Current operational notes
+
+- Generic Fetch supports ordinary HTML image tags. JavaScript-rendered, login-gated,
+  encrypted, or protected comic sites require a dedicated site adapter.
+- The automatic runner processes one page at a time and checkpoints each stage.
+  Pause takes effect between stage operations; it does not interrupt a running model call.
+- The stage editor stores JSON. Review OCR coordinates and translations before committing
+  a chapter; manual output can be saved and reused by downstream stages.
+- CPU performance and Myanmar font rendering depend on the local model, installed fonts,
+  and Pillow/RAQM build. No speed guarantee is made for this hardware.
