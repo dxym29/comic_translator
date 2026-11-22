@@ -68,6 +68,8 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     source = Path(image_path)
     if not source.is_file():
         raise ValueError("typeset stage requires a valid cleaned image_path")
+    if not features.check("raqm"):
+        raise RuntimeError("This Pillow build has no RAQM text shaping. Install a Pillow build with libraqm support before Myanmar typesetting.")
     font_path = _font_path(font_family)
     image = Image.open(source).convert("RGB")
     draw = ImageDraw.Draw(image)
@@ -76,8 +78,10 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
         text = str(item.get("translated_text", item.get("translation", ""))).strip()
         if not text:
             continue
-        x, y = int(item.get("x", 0)), int(item.get("y", 0))
-        w, h = int(item.get("width", 0)), int(item.get("height", 0))
+        x = int(item.get("bubble_x", item.get("x", 0)))
+        y = int(item.get("bubble_y", item.get("y", 0)))
+        w = int(item.get("bubble_width", item.get("width", 0)))
+        h = int(item.get("bubble_height", item.get("height", 0))
         if w < 4 or h < 4 or x < 0 or y < 0 or x + w > image.width or y + h > image.height:
             continue
         # Keep a small inset from the detected bubble/text box.
@@ -85,10 +89,7 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
         max_w, max_h = max(1, w - inset * 2), max(1, h - inset * 2)
         chosen, wrapped = None, text
         for size in range(max(8, int(font_size)), 7, -1):
-            try:
-                font = ImageFont.truetype(font_path, size, layout_engine=ImageFont.Layout.RAQM)
-            except Exception:
-                font = ImageFont.truetype(font_path, size)
+            font = ImageFont.truetype(font_path, size, layout_engine=ImageFont.Layout.RAQM)
             candidate = _wrap(text, font, draw, max_w)
             box = draw.multiline_textbbox((0, 0), candidate, font=font, spacing=max(1, size // 6),
                                           align="center", stroke_width=0)
@@ -111,4 +112,4 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     image.save(target, format="PNG", optimize=True)
     return {"image_path": str(target), "rendered_regions": rendered,
             "font_family": font_family, "font_path": font_path,
-            "raqm_available": bool(features.check("raqm"))}
+            "raqm_available": True}
