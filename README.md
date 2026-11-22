@@ -12,6 +12,8 @@ A separate Windows desktop application for translating comic chapters into Myanm
 - Database tables prepared for chapters, pages, detected text regions and resumable jobs.
 - Optional CPU OCR integration using PaddleOCR PP-OCRv5 mobile detection/recognition models.
 - OCR preview API returns text-line boxes, recognized text and confidence values.
+- Nearby OCR lines are conservatively grouped into editable text-block suggestions.
+- Users can edit each block's recognized text and X/Y/width/height before preview cleanup.
 - OpenCV Telea inpainting preview can remove detected text regions on a copy of the image.
 - OCR/image-processing dependencies are optional and are not required for the desktop shell to start.
 - Gemini model settings documented as the planned translation route:
@@ -20,7 +22,7 @@ A separate Windows desktop application for translating comic chapters into Myanm
 
 ## Not implemented yet
 
-Website-specific chapter fetching, automatic bubble grouping and manual editing of OCR text/region geometry in the UI, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. OCR and cleanup are currently exposed as local preview API endpoints, not a finished user-facing workflow.
+Website-specific chapter fetching, automatic speech-bubble boundary detection and reliable artwork-aware text removal, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. OCR and cleanup are currently exposed as local preview API endpoints, not a finished user-facing workflow.
 
 ## Hardware target
 
@@ -62,6 +64,7 @@ The API listens only on `127.0.0.1:43128`.
 
 Local image preview endpoints:
 - `POST /api/v1/images/ocr-preview` — multipart fields `file` and optional `language` (`en`, `ch`, `japan`, `korean`, `th`).
+- `POST /api/v1/images/group-regions` — JSON body with a `regions` list; returns suggested text blocks.
 - `POST /api/v1/images/clean-preview` — multipart fields `file` and `regions_json` (the region list returned by OCR).
 
 OCR boxes are text-line detections, not guaranteed speech-bubble boundaries. Always review detections before cleaning an original image. Cleanup uses a basic OpenCV inpainting baseline; complex textures and overlapping artwork may need manual correction.
