@@ -73,6 +73,7 @@ function openProject(project) {
   workspaceTitle.textContent = project.name + " · OCR Preview";
   workspace.hidden = false;
   workspace.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (window.comicPipeline) window.comicPipeline.reload().catch(error => console.error(error));
 }
 
 function resetOcrResults() {
