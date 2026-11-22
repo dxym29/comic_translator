@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; connect-src http://127.0.0.1:43128">
+  <title>Comic Translator</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">CT</span><div><strong>Comic Translator</strong><small>LOCAL WORKSPACE</small></div></div>
+      <nav>
+        <button class="nav-item active">Workspace</button>
+        <button class="nav-item" disabled>Projects</button>
+        <button class="nav-item" disabled>Batch Queue</button>
+        <button class="nav-item" disabled>Settings</button>
+      </nav>
+      <div class="sidebar-footer"><span class="status-dot"></span><span id="service-status">Connecting to local engine…</span></div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar"><div><span class="eyebrow">LOCAL COMIC WORKFLOW</span><h1>Workspace</h1></div><div class="engine-pill">OLLAMA + GEMINI</div></header>
+      <section class="welcome-panel">
+        <div class="welcome-copy">
+          <span class="eyebrow">YOUR COMIC TRANSLATION STUDIO</span>
+          <h2>Bring your chapters<br>to Myanmar.</h2>
+          <p>Fetch, clean, translate, typeset, and export comic chapters from one local workspace.</p>
+          <button class="primary-button" disabled title="Project creation is coming in the next development step">Create project <span>＋</span></button>
+        </div>
+        <div class="workflow">
+          <div class="workflow-step"><span>01</span><strong>Fetch</strong><small>Chapter images</small></div>
+          <div class="workflow-step"><span>02</span><strong>Clean</strong><small>Detect & remove text</small></div>
+          <div class="workflow-step"><span>03</span><strong>Translate</strong><small>Gemini translation</small></div>
+          <div class="workflow-step"><span>04</span><strong>Typeset</strong><small>Myanmar lettering</small></div>
+          <div class="workflow-step"><span>05</span><strong>Export</strong><small>CBZ / ZIP</small></div>
+        </div>
+      </section>
+      <section class="info-grid">
+        <article class="info-card"><span class="card-label">TRANSLATION ENGINE</span><h3>Gemini 3.1 Flash-Lite</h3><p>Primary model with Gemini 3.5 Flash-Lite quota fallback.</p><span class="tag">Planned</span></article>
+        <article class="info-card"><span class="card-label">LOCAL PROCESSING</span><h3>OCR & image cleanup</h3><p>CPU-first processing designed for this computer's hardware.</p><span class="tag">Planned</span></article>
+        <article class="info-card"><span class="card-label">LETTERING STYLES</span><h3>Two layout modes</h3><p>Original Bubble Style and Professional Typesetting.</p><span class="tag">Planned</span></article>
+      </section>
+      <footer>Comic Translator <span>•</span> Separate project · Local-first</footer>
+    </main>
+  </div>
+  <script src="./renderer.js"></script>
+</body>
+</html>
