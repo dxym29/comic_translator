@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend.projects import create_project, get_project, list_projects
+from backend.main import projects_delete
 from backend.storage import initialize_database
 
 
@@ -26,6 +27,19 @@ class ProjectTests(unittest.TestCase):
                 self.assertTrue((root / "project.json").is_file())
                 for folder in ("source", "cleaned", "rendered", "exports"):
                     self.assertTrue((root / folder).is_dir())
+
+
+    def test_delete_project_removes_its_folder_and_database_row(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with patch.dict("os.environ", {"COMIC_TRANSLATOR_DATA_DIR": temp}):
+                initialize_database()
+                project = create_project(name="Delete Me")
+                project_dir = Path(project["storage_path"])
+                self.assertTrue(project_dir.exists())
+                result = projects_delete(project["id"])
+                self.assertTrue(result["deleted"])
+                self.assertIsNone(get_project(project["id"]))
+                self.assertFalse(project_dir.exists())
 
 
 if __name__ == "__main__":
