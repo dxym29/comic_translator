@@ -282,7 +282,8 @@ function buildLineMasks(group, editedGroup) {
 cleanButton.addEventListener("click", async () => {
   if (!selectedFile || !detectedRegions.length) return;
   cleanButton.disabled = true;
-  ocrMessage.textContent = "Removing selected text using individual OCR line boxes…";
+  const selectedModel = document.getElementById("preview-inpainting-model").value;
+  ocrMessage.textContent = "AI inpainting with " + (selectedModel === "aot_gan" ? "AOT-GAN" : "LaMa Manga") + "…";
   try {
     const selected = [...regionList.querySelectorAll(".region-card")]
       .filter(card => card.querySelector(".region-enabled").checked)
@@ -300,6 +301,7 @@ cleanButton.addEventListener("click", async () => {
     const body = new FormData();
     body.append("file", selectedFile);
     body.append("regions_json", JSON.stringify(selected));
+    body.append("model", selectedModel);
     const response = await fetch(window.comicTranslator.apiBaseUrl + "/api/v1/images/clean-preview", { method: "POST", body });
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
@@ -311,7 +313,7 @@ cleanButton.addEventListener("click", async () => {
     previewImage.src = cleanedObjectUrl;
     downloadCleaned.href = cleanedObjectUrl;
     downloadCleaned.hidden = false;
-    ocrMessage.textContent = "Cleanup preview ready. Original image is unchanged; only selected OCR line boxes were inpainted.";
+    ocrMessage.textContent = "AI inpainting preview ready (" + (selectedModel === "aot_gan" ? "AOT-GAN" : "LaMa Manga") + "). Original image is unchanged.";
   } catch (error) {
     ocrMessage.textContent = error.message;
   } finally {
