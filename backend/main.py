@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 import importlib.util
 import json
+import requests
 import mimetypes
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +117,46 @@ async def _read_image(upload: UploadFile) -> Any:
     if image is None:
         raise HTTPException(status_code=400, detail="The uploaded file is not a supported image.")
     return image
+
+
+@app.post("/api/v1/projects/{project_id}/images/ollama-detect")
+async def ollama_detect_preview(project_id: str, file: UploadFile = File(...)):
+    project = get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if file.content_type and not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Please upload an image file.")
+    data = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image is larger than 20 MB.")
+    try:
+        import cv2
+        import numpy as np
+        image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if image is None:
+            raise HTTPException(status_code=400, detail="The uploaded file is not a supported image.")
+        suffix = Path(file.filename or "comic-image.png").suffix.lower()
+        if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+            suffix = ".png"
+        with tempfile.TemporaryDirectory(prefix="comic-ollama-") as temp_dir:
+            image_path = Path(temp_dir) / ("input" + suffix)
+            image_path.write_bytes(data)
+            from .pipeline import _ollama_extract
+            result = _ollama_extract({"image_path": str(image_path)})
+        return {
+            "width": int(image.shape[1]), "height": int(image.shape[0]),
+            "regions": result["regions"], "count": len(result["regions"]),
+            "model": result["model"],
+            "note": "Text and coordinates detected locally by Ollama Vision."
+        }
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Ollama request failed: {exc}") from exc
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail=f"Ollama could not return valid text regions: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Ollama text detection failed: {exc}") from exc
 
 
 @app.post("/api/v1/images/ocr-preview")
