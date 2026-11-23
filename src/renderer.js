@@ -39,11 +39,11 @@ async function checkLocalEngine() {
 
 async function loadProjects() {
   const result = await window.comicTranslator.listProjects();
+  projectList.innerHTML = "";
   if (!result.projects.length) {
     projectList.innerHTML = '<div class="empty-state">No projects yet. Create your first comic project to get started.</div>';
     return;
   }
-  projectList.innerHTML = "";
   for (const project of result.projects) {
     const card = document.createElement("article");
     card.className = "project-row";
@@ -56,11 +56,42 @@ async function loadProjects() {
     details.append(title, description);
     const date = document.createElement("small");
     date.textContent = new Date(project.updated_at).toLocaleString();
+    const actions = document.createElement("div");
+    actions.className = "project-row-actions";
     const open = document.createElement("button");
-    open.className = "secondary-button";
-    open.textContent = "Open project";
+    open.className = "primary-button project-open-button";
+    open.textContent = "Open";
     open.addEventListener("click", () => openProject(project));
-    card.append(details, date, open);
+    const remove = document.createElement("button");
+    remove.className = "danger-button";
+    remove.textContent = "Delete";
+    remove.addEventListener("click", async () => {
+      const confirmed = window.confirm(
+        'Delete "' + project.name + '"?\\n\\nThis permanently removes the project, its downloaded pages, processed images, exports and saved history from this computer.'
+      );
+      if (!confirmed) return;
+      remove.disabled = true;
+      remove.textContent = "Deleting…";
+      try {
+        const response = await fetch(window.comicTranslator.apiBaseUrl + "/api/v1/projects/" + encodeURIComponent(project.id), { method: "DELETE" });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.detail || "Could not delete project");
+        if (selectedProject?.id === project.id) {
+          selectedProject = null;
+          window.__comicSelectedProject = null;
+          window.__comicSelectedProjectId = null;
+          workspace.hidden = true;
+          document.getElementById("pipeline-workbench").hidden = true;
+        }
+        await loadProjects();
+      } catch (error) {
+        window.alert(error.message);
+        remove.disabled = false;
+        remove.textContent = "Delete";
+      }
+    });
+    actions.append(open, remove);
+    card.append(details, date, actions);
     projectList.append(card);
   }
 }
