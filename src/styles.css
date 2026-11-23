@@ -52,3 +52,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .chapter-label{width:100%}
   .chapter-label input{flex:1}
 }
+
+.engine-select-label{display:grid;gap:6px;color:#aeb3bd;font-size:10px}
+.engine-select-label select{min-width:220px;background:#11141a;color:#f2f3f5;border:1px solid #554832;border-radius:7px;padding:10px;font-size:11px}
+.engine-select-label select:focus{border-color:#d4ad70}
+@media(max-width:640px){.engine-select-label{width:100%}.engine-select-label select{width:100%}}
