@@ -47,6 +47,7 @@ def capabilities():
         "database": True,
         "pipeline_stage_history": True,
         "fetch_generic_images": True,
+        "epub_import": True,
         "ollama_vision_extraction": True,
         "gemini_translation": True,
         "ai_text_removal": importlib.util.find_spec("simple_lama_inpainting") is not None,
