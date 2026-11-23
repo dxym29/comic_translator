@@ -57,3 +57,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .engine-select-label select{min-width:220px;background:#11141a;color:#f2f3f5;border:1px solid #554832;border-radius:7px;padding:10px;font-size:11px}
 .engine-select-label select:focus{border-color:#d4ad70}
 @media(max-width:640px){.engine-select-label{width:100%}.engine-select-label select{width:100%}}
+
+.advanced-editor{margin-top:14px;border:1px solid #343943;border-radius:9px;background:#14171d}
+.advanced-editor summary{padding:12px 14px;color:#c6a36a;font-size:11px;font-weight:700;cursor:pointer;user-select:none}
+.advanced-editor[open] summary{border-bottom:1px solid #343943}
+.advanced-editor .pipeline-editors{padding:0 12px 12px}
+.project-row-actions .primary-button{margin:0}
