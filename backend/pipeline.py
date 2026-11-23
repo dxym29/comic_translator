@@ -182,14 +182,15 @@ def _run_stage(stage: str, data: dict, project: dict) -> dict:
     if stage == "extract":
         return _ollama_extract(data)
     if stage == "remove":
-        from .image_inpainting import inpaint_with_lama
+        from .image_inpainting import inpaint_with_model
         image_path = str(data.get("image_path", ""))
         output_path = str(data.get("output_path") or (
             get_data_dir() / "projects" / project["id"] / "cleaned" /
             (Path(image_path).stem + "-cleaned.png")
         ))
-        return inpaint_with_lama(image_path, data.get("regions", []), output_path,
-                                 float(data.get("padding_ratio", 0.18)))
+        return inpaint_with_model(image_path, data.get("regions", []), output_path,
+                                  float(data.get("padding_ratio", 0.18)),
+                                  str(data.get("model", "lama_manga")) )
     if stage == "translate":
         return _gemini_translate(data, project)
     if stage == "typeset":
