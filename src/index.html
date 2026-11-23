@@ -39,7 +39,8 @@
         <div class="section-heading"><div><span class="eyebrow">QUICK IMAGE REVIEW</span><h2 id="workspace-title">Project image preview</h2></div><button id="close-workspace" class="secondary-button">Back to projects</button></div>
         <div class="ocr-toolbar">
           <label class="file-picker">Choose comic image<input id="comic-image" type="file" accept="image/*"></label>
-          <span class="section-note">Engine: Ollama Vision · qwen2.5vl:3b</span>
+          <span class="section-note">Text detection: Ollama Vision · qwen2.5vl:3b</span>
+          <label class="engine-select-label preview-engine-select">Inpainting<select id="preview-inpainting-model"><option value="lama_manga">LaMa Manga</option><option value="aot_gan">AOT-GAN Manga/Anime</option></select></label>
           <button id="detect-text" class="primary-button" disabled>Detect text</button>
           <button id="clean-image" class="secondary-button" disabled>Remove selected text</button>
         </div>
