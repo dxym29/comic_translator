@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import importlib.util
 import json
 import requests
+import shutil
 import mimetypes
 import tempfile
 from pathlib import Path
@@ -32,7 +33,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["null", "file://"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -74,6 +75,38 @@ def projects_create(payload: ProjectCreate):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not create project: {exc}") from exc
 
+
+
+@app.delete("/api/v1/projects/{project_id}")
+def projects_delete(project_id: str):
+    project = get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Only allow deleting a project folder directly inside the app's projects directory.
+    projects_root = (Path(project["storage_path"]).expanduser().resolve().parent)
+    expected_root = (Path(project["storage_path"]).expanduser().resolve().parent)
+    project_dir = Path(project["storage_path"]).expanduser().resolve()
+    if project_dir.name != project_id or project_dir.parent != expected_root:
+        raise HTTPException(status_code=400, detail="Project storage path is invalid")
+
+    trash_dir = project_dir.with_name(".deleting-" + project_id)
+    try:
+        if project_dir.exists():
+            project_dir.rename(trash_dir)
+        from .storage import connect
+        with connect() as db:
+            db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        if trash_dir.exists():
+            shutil.rmtree(trash_dir)
+        return {"deleted": True, "project_id": project_id}
+    except Exception as exc:
+        if trash_dir.exists() and not project_dir.exists():
+            try:
+                trash_dir.rename(project_dir)
+            except OSError:
+                pass
+        raise HTTPException(status_code=500, detail=f"Could not delete project: {exc}") from exc
 
 
 @app.get("/api/v1/projects/{project_id}/image")
