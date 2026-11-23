@@ -101,7 +101,7 @@ function openProject(project) {
   window.__comicSelectedProject = project;
   window.__comicSelectedProjectId = project.id;
   document.getElementById("pipeline-workbench").hidden = false;
-  workspaceTitle.textContent = project.name + " · Ollama Vision Preview";
+  workspaceTitle.textContent = project.name + " · Quick image review";
   workspace.hidden = false;
   workspace.scrollIntoView({ behavior: "smooth", block: "start" });
   if (window.comicPipeline) window.comicPipeline.reload().catch(error => console.error(error));
