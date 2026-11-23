@@ -19,7 +19,7 @@
 .project-row-actions{display:flex;align-items:center;gap:8px}
 .project-row-actions button{margin:0;white-space:nowrap}
 .project-open-button{padding:10px 15px}
-.danger-button{border:1px solid #75433f;background:#30201f;color:#e5aaa1;border-radius:8px;padding:10px 14px;cursor:pointer;font:600 12px inherit}
+.danger-button{border:1px solid #75433f;background:#30201f;color:#e5aaa1;border-radius:8px;padding:10px 14px;cursor:pointer;font:inherit;font-size:12px;font-weight:600}
 .danger-button:hover{background:#492825;border-color:#a35d55}
 .danger-button:disabled{opacity:.55;cursor:wait}
 .pipeline-actions .file-picker{align-self:stretch}
