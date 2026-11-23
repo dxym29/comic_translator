@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
@@ -79,31 +78,29 @@ def _latest(project_id: str, chapter_id: str | None = None) -> list[dict]:
             for r in rows]
 
 
-def _ollama_extract(data: dict) -> dict:
+def _ocr_extract(data: dict, project: dict) -> dict:
     image_path = Path(str(data.get("image_path", ""))).expanduser()
     if not image_path.is_file():
         raise ValueError("extract stage requires a valid image_path")
-    model = os.getenv("COMIC_OLLAMA_VISION_MODEL", "qwen2.5vl:3b")
-    prompt = data.get("prompt") or (
-        "Read every visible text item in this comic image. Return ONLY valid JSON: "
-        '{"regions":[{"text":"exact original text","x":0,"y":0,"width":1,"height":1,'
-        '"bubble_x":0,"bubble_y":0,"bubble_width":1,"bubble_height":1,'
-        '"reading_order":1,"kind":"speech|narration|sfx","confidence":0.0}]}. '
-        "All coordinates are pixels from top-left. x/y/width/height tightly enclose the printed text for masking; bubble_x/y/width/height enclose the full speech balloon for lettering. For narration boxes use the panel box. Do not translate."
-    )
-    encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
-    response = requests.post("http://127.0.0.1:11434/api/generate", json={
-        "model": model, "prompt": prompt, "images": [encoded], "stream": False,
-        "format": "json", "options": {"temperature": 0}
-    }, timeout=(10, 300))
-    response.raise_for_status()
-    raw = response.json().get("response", "")
-    parsed = json.loads(raw)
-    regions = parsed.get("regions", [])
-    if not isinstance(regions, list):
-        raise ValueError("Ollama response did not contain a regions array")
-    return {"model": model, "image_path": str(image_path), "regions": regions, "raw": raw}
-
+    try:
+        import cv2
+    except ImportError as exc:
+        raise RuntimeError("OpenCV is not installed. Install backend/requirements-ocr-cpu.txt first.") from exc
+    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError("Could not read the image for OCR.")
+    from .ocr import model_label, recognize_image
+    language = data.get("language") or project.get("source_language") or "English"
+    regions = recognize_image(image, language=language)
+    return {
+        "model": model_label(language),
+        "image_path": str(image_path),
+        "width": int(image.shape[1]),
+        "height": int(image.shape[0]),
+        "regions": regions,
+        "count": len(regions),
+        "note": "PP-OCR text-line boxes; review and edit before removing text."
+    }
 
 def _gemini_translate(data: dict, project: dict) -> dict:
     key = os.getenv("GEMINI_API_KEY", "").strip()
@@ -180,7 +177,7 @@ def _run_stage(stage: str, data: dict, project: dict) -> dict:
         return {"chapter_url": url, "pages": saved, "count": len(saved),
                 "note": "Generic image extraction only; sites with scripts, protected media or login need a dedicated adapter."}
     if stage == "extract":
-        return _ollama_extract(data)
+        return _ocr_extract(data, project)
     if stage == "remove":
         from .image_inpainting import inpaint_with_model
         image_path = str(data.get("image_path", ""))
