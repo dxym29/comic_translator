@@ -105,17 +105,26 @@ ollama pull qwen2.5vl:3b
 
 Set `GEMINI_API_KEY` in the environment before running the translation stage.
 
-### Optional CPU LaMa inpainting
+### Optional CPU manga inpainting
 
-Text removal uses a real LaMa model adapter, not the OpenCV Telea preview operation.
-It is optional because its PyTorch CPU runtime and model weights are large:
+The Remove stage supports two selectable CPU models:
+
+- **LaMa Manga** — manga/anime-finetuned TorchScript checkpoint (~196 MiB).
+- **AOT-GAN Manga/Anime** — lightweight TorchScript checkpoint (~22 MiB).
+
+Install the PyTorch CPU runtime and image-processing requirements:
 
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -r backend/requirements-lama-cpu.txt
 ```
 
-The first LaMa run downloads model weights and can be slow on an i5-8265U CPU.
+The selected model is downloaded automatically on first use, checksum-verified,
+and cached under `%LOCALAPPDATA%\\ComicTranslator\\models\\inpainting`.
+On an i5-8265U CPU, processing can take time; AOT-GAN has a smaller checkpoint,
+while LaMa Manga is the larger manga-finetuned option. The user can switch models
+for each Remove stage and review the resulting image before continuing.
+
 Install the selected Myanmar font in Windows. Pillow's RAQM text layout support is
 used when available; verify Myanmar shaping on the installed Pillow build before
 processing a full chapter.
@@ -140,3 +149,10 @@ than page images are not converted into comic pages.
   a chapter; manual output can be saved and reused by downstream stages.
 - CPU performance and Myanmar font rendering depend on the local model, installed fonts,
   and Pillow/RAQM build. No speed guarantee is made for this hardware.
+
+
+### Project management
+
+The local project library now includes a Delete action for each project. Deleting
+a project permanently removes its saved chapter images, cleaned/rendered pages,
+exports, and pipeline history from this computer after confirmation.
