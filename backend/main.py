@@ -53,12 +53,12 @@ def capabilities():
         "epub_import": True,
         "ollama_vision_extraction": True,
         "gemini_translation": True,
-        "ai_text_removal": importlib.util.find_spec("simple_lama_inpainting") is not None,
+        "ai_text_removal": importlib.util.find_spec("torch") is not None,
         "typesetting": importlib.util.find_spec("PIL") is not None,
         "export": True,
         "paddleocr_preview": importlib.util.find_spec("paddleocr") is not None,
         "opencv_preview_cleanup": importlib.util.find_spec("cv2") is not None,
-        "message": "Pipeline stages are implemented. LaMa AI inpainting requires the optional CPU package and model weights; Myanmar rendering requires a supported installed font."
+        "message": "LaMa Manga and AOT-GAN CPU inpainting download verified model weights on first use; Myanmar rendering requires a supported installed font."
     }
 
 
