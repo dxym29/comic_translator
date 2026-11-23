@@ -174,11 +174,12 @@ detectButton.addEventListener("click", async () => {
   if (!selectedFile || !selectedProject) return;
   detectButton.disabled = true;
   cleanButton.disabled = true;
-  ocrMessage.textContent = "Ollama Vision နဲ့ စာသားနဲ့ တည်နေရာတွေကို ရှာဖွေနေသည်။ ပထမဆုံးအကြိမ်မှာ model စတင်ဖို့ အချိန်ယူနိုင်သည်။";
+  ocrMessage.textContent = "PP-OCR ကို CPU ပေါ်မှာ စတင်ပြီး စာသားတွေကို ရှာဖွေနေသည်။ ပထမဆုံးအကြိမ်မှာ OCR model ကို download လုပ်နိုင်သည်။";
   try {
     const body = new FormData();
     body.append("file", selectedFile);
-    const response = await fetch(window.comicTranslator.apiBaseUrl + "/api/v1/projects/" + encodeURIComponent(selectedProject.id) + "/images/ollama-detect", { method: "POST", body });
+    body.append("language", selectedProject.source_language || "English");
+    const response = await fetch(window.comicTranslator.apiBaseUrl + "/api/v1/images/ocr-preview", { method: "POST", body });
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || "OCR request failed");
     detectedRegions = result.regions;
@@ -191,7 +192,7 @@ detectButton.addEventListener("click", async () => {
     if (!groupedResponse.ok) throw new Error(grouped.detail || "Could not group OCR text lines");
     detectedGroups = grouped.groups;
     renderRegions();
-    ocrMessage.textContent = `Ollama (${result.model}) က စာသား ${result.count} ခု ရှာတွေ့ပြီး ${grouped.count} blocks အဖြစ် စုစည်းထားသည်။ ${result.width} × ${result.height} ပုံဖြစ်သည်။ Cleanup မလုပ်ခင် တစ်ခုချင်းစီ စစ်ဆေး/ပြင်ဆင်နိုင်သည်။`;
+    ocrMessage.textContent = `${result.model} က စာသား ${result.count} ခု ရှာတွေ့ပြီး ${grouped.count} blocks အဖြစ် စုစည်းထားသည်။ ${result.width} × ${result.height} ပုံဖြစ်သည်။ Cleanup မလုပ်ခင် တစ်ခုချင်းစီ စစ်ဆေး/ပြင်ဆင်နိုင်သည်။`;
     cleanButton.disabled = detectedGroups.length === 0;
   } catch (error) {
     ocrMessage.textContent = error.message;
