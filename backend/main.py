@@ -210,23 +210,31 @@ async def ocr_preview(file: UploadFile = File(...), language: str = Form("en")):
 
 
 @app.post("/api/v1/images/clean-preview")
-async def clean_preview(file: UploadFile = File(...), regions_json: str = Form(...)):
+async def clean_preview(
+    file: UploadFile = File(...),
+    regions_json: str = Form(...),
+    model: str = Form("lama_manga"),
+):
     image = await _read_image(file)
     try:
         import cv2
         regions = json.loads(regions_json)
         if not isinstance(regions, list) or len(regions) > 1000:
             raise ValueError("Regions must be a list containing at most 1000 items.")
-        from .image_cleanup import remove_text
-        cleaned = remove_text(image, regions)
-        ok, encoded = cv2.imencode(".png", cleaned)
+        ok, encoded = cv2.imencode(".png", image)
         if not ok:
-            raise RuntimeError("Could not encode cleaned preview.")
-        return Response(content=encoded.tobytes(), media_type="image/png")
+            raise RuntimeError("Could not encode source image for inpainting.")
+        with tempfile.TemporaryDirectory(prefix="comic-inpaint-preview-") as temp_dir:
+            source_path = Path(temp_dir) / "source.png"
+            output_path = Path(temp_dir) / "cleaned.png"
+            source_path.write_bytes(encoded.tobytes())
+            from .image_inpainting import inpaint_with_model
+            inpaint_with_model(str(source_path), regions, str(output_path), model_name=model)
+            return Response(content=output_path.read_bytes(), media_type="image/png")
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"Invalid text regions: {exc}") from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Image cleanup failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"AI inpainting failed: {exc}") from exc
 
 
 @app.post("/api/v1/images/group-regions")
