@@ -14,7 +14,7 @@ A separate Windows desktop application for translating comic chapters into Myanm
 - OCR preview API returns text-line boxes, recognized text and confidence values.
 - Nearby OCR lines are conservatively grouped into editable text-block suggestions.
 - Users can edit each block's recognized text and X/Y/width/height before preview cleanup.
-- OpenCV Telea inpainting preview can remove detected text regions on a copy of the image.
+- AI inpainting preview supports manga-oriented LaMa and AOT-GAN models on CPU.
 - OCR/image-processing dependencies are optional and are not required for the desktop shell to start.
 - Gemini model settings documented as the planned translation route:
   - Primary: Gemini 3.1 Flash-Lite
@@ -65,9 +65,9 @@ The API listens only on `127.0.0.1:43128`.
 Local image preview endpoints:
 - `POST /api/v1/images/ocr-preview` — multipart fields `file` and optional `language` (`en`, `ch`, `japan`, `korean`, `th`).
 - `POST /api/v1/images/group-regions` — JSON body with a `regions` list; returns suggested text blocks.
-- `POST /api/v1/images/clean-preview` — multipart fields `file` and `regions_json` (the region list returned by OCR).
+- `POST /api/v1/images/clean-preview` — multipart fields `file`, `regions_json`, and optional `model` (`lama_manga` or `aot_gan`).
 
-OCR boxes are text-line detections, not guaranteed speech-bubble boundaries. Always review detections before cleaning an original image. Cleanup uses a basic OpenCV inpainting baseline; complex textures and overlapping artwork may need manual correction.
+OCR boxes are text-line detections, not guaranteed speech-bubble boundaries. Always review detections before cleaning an original image. AI inpainting results depend on mask quality and surrounding context; review the output before continuing.
 
 ## Local data
 
