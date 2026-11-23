@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from .projects import create_project, get_project, list_projects
 from .region_grouping import group_text_regions
 from .schemas import ProjectCreate
-from .storage import initialize_database
+from .storage import initialize_database, get_data_dir
 from .pipeline import router as pipeline_router
 
 
@@ -84,8 +84,7 @@ def projects_delete(project_id: str):
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Only allow deleting a project folder directly inside the app's projects directory.
-    projects_root = (Path(project["storage_path"]).expanduser().resolve().parent)
-    expected_root = (Path(project["storage_path"]).expanduser().resolve().parent)
+    expected_root = (get_data_dir() / "projects").resolve()
     project_dir = Path(project["storage_path"]).expanduser().resolve()
     if project_dir.name != project_id or project_dir.parent != expected_root:
         raise HTTPException(status_code=400, detail="Project storage path is invalid")
