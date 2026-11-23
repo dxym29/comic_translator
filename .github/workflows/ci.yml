@@ -26,3 +26,4 @@ jobs:
           node --check electron/main.cjs
           node --check electron/preload.cjs
           node --check src/renderer.js
+          node --check src/pipeline-ui.js
