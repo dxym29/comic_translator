@@ -70,7 +70,7 @@ function openProject(project) {
   window.__comicSelectedProject = project;
   window.__comicSelectedProjectId = project.id;
   document.getElementById("pipeline-workbench").hidden = false;
-  workspaceTitle.textContent = project.name + " · OCR Preview";
+  workspaceTitle.textContent = project.name + " · Ollama Vision Preview";
   workspace.hidden = false;
   workspace.scrollIntoView({ behavior: "smooth", block: "start" });
   if (window.comicPipeline) window.comicPipeline.reload().catch(error => console.error(error));
@@ -209,7 +209,7 @@ function renderRegions() {
     }
     const confidence = document.createElement("small");
     confidence.className = "region-confidence";
-    confidence.textContent = group.confidence == null ? "Confidence unavailable" : `OCR confidence: ${Math.round(group.confidence * 100)}%`;
+    confidence.textContent = group.confidence == null ? "Confidence unavailable" : `AI confidence: ${Math.round(group.confidence * 100)}%`;
     card.append(header, text, geometry, confidence);
     regionList.append(card);
   }
