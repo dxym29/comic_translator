@@ -5,6 +5,7 @@ import requests
 import shutil
 import mimetypes
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +90,7 @@ def projects_delete(project_id: str):
     if project_dir.name != project_id or project_dir.parent != expected_root:
         raise HTTPException(status_code=400, detail="Project storage path is invalid")
 
-    trash_dir = project_dir.with_name(".deleting-" + project_id)
+    trash_dir = expected_root / (".deleting-" + project_id + "-" + uuid.uuid4().hex)
     try:
         if project_dir.exists():
             project_dir.rename(trash_dir)
