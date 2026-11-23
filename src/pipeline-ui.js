@@ -1,6 +1,6 @@
 (() => {
   const names = ["fetch", "extract", "remove", "translate", "typeset", "export"];
-  const labels = ["Fetch images", "Ollama text extraction", "Inpainting · LaMa Manga / AOT-GAN", "Gemini translation", "Myanmar typesetting", "CBZ / ZIP export"];
+  const labels = ["Fetch images", "PP-OCRv6 text extraction", "Inpainting · LaMa Manga / AOT-GAN", "Gemini translation", "Myanmar typesetting", "CBZ / ZIP export"];
   const $ = (id) => document.getElementById(id);
   const list = $("pipeline-stage-list");
   if (!list) return;
