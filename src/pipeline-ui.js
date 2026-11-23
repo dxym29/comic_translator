@@ -1,6 +1,6 @@
 (() => {
   const names = ["fetch", "extract", "remove", "translate", "typeset", "export"];
-  const labels = ["Fetch images", "Ollama text extraction", "LaMa AI text removal", "Gemini translation", "Myanmar typesetting", "CBZ / ZIP export"];
+  const labels = ["Fetch images", "Ollama text extraction", "Inpainting · LaMa Manga / AOT-GAN", "Gemini translation", "Myanmar typesetting", "CBZ / ZIP export"];
   const $ = (id) => document.getElementById(id);
   const list = $("pipeline-stage-list");
   if (!list) return;
@@ -67,8 +67,14 @@
   }
   function showCurrent() {
     const item = history[current] || {};
-    $("pipeline-input").value = json(item.input || defaultInput(current));
+    const stageInput = item.input || defaultInput(current);
+    $("pipeline-input").value = json(stageInput);
     $("pipeline-output").value = json(item.output || {});
+    const modelSelect = $("inpainting-model");
+    if (modelSelect) {
+      modelSelect.value = stageInput.model || "lama_manga";
+      modelSelect.closest("label").hidden = current !== "remove";
+    }
     renderStages(history);
     updatePreviews();
   }
@@ -80,7 +86,9 @@
     }
     if (stage === "remove") return {
       image_path: activePage?.image_path || history.extract?.output?.image_path || "",
-      regions: history.extract?.output?.regions || []
+      regions: history.extract?.output?.regions || [],
+      model: $("inpainting-model")?.value || "lama_manga",
+      padding_ratio: 0.18
     };
     if (stage === "translate") return {
       regions: (history.extract?.output?.regions || []).map((r, i) => ({ ...r, id: r.id || String(i + 1) }))
@@ -238,6 +246,17 @@
     message(paused ? "Pause requested. လက်ရှိ stage ပြီးတာနဲ့ ရပ်စောင့်မယ်။" : "Resume လုပ်ပြီး ဆက်လက်လုပ်ဆောင်နေသည်။");
   });
   $("pipeline-refresh").addEventListener("click", () => reload().catch(e => message(e.message, true)));
+  $("inpainting-model").addEventListener("change", () => {
+    if (current !== "remove") return;
+    try {
+      const input = parseEditor("pipeline-input");
+      input.model = $("inpainting-model").value;
+      $("pipeline-input").value = json(input);
+      message("Inpainting model changed. Run the Remove stage to use this model.");
+    } catch (error) {
+      message(error.message, true);
+    }
+  });
   $("pipeline-input").addEventListener("input", updatePreviews);
   $("pipeline-output").addEventListener("input", updatePreviews);
   $("pipeline-chapter").addEventListener("change", () => reload().catch(e => message(e.message, true)));
