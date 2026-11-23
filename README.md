@@ -10,7 +10,7 @@ A separate Windows desktop application for translating comic chapters into Myanm
 - Per-project source/target language, source URL, font and lettering style settings.
 - Project folders for source images, cleaned images, rendered pages and exports.
 - Database tables prepared for chapters, pages, detected text regions and resumable jobs.
-- Optional CPU OCR integration using PaddleOCR PP-OCRv5 mobile detection/recognition models.
+- CPU OCR integration using PaddleOCR PP-OCRv6 multilingual models through ONNX Runtime (English default); PP-OCRv5 is selected for Korean/Thai.
 - OCR preview API returns text-line boxes, recognized text and confidence values.
 - Nearby OCR lines are conservatively grouped into editable text-block suggestions.
 - Users can edit each block's recognized text and X/Y/width/height before preview cleanup.
@@ -46,7 +46,7 @@ pip install -r backend/requirements.txt
 pip install -r backend/requirements-ocr-cpu.txt
 ```
 
-PaddleOCR downloads its selected model files on first use. The current OCR setup selects PP-OCRv5 mobile models and CPU execution to limit resource use. See the [official PaddleOCR CPU installation guide](https://www.paddleocr.ai/latest/en/quick_start.html).
+PaddleOCR downloads its selected PP-OCR model files on first use. English, Japanese and Chinese use PP-OCRv6; Korean and Thai use PP-OCRv5. Inference runs with ONNX Runtime on CPU, without requiring PaddlePaddle. Python 3.13 is the recommended Windows runtime for the OCR dependencies; Python 3.14 wheel availability varies by dependency. See the [PaddleOCR inference engine guide](https://www.paddleocr.ai/latest/en/version3.x/inference_deployment/local_inference/inference_engine.html).
 
 Run the desktop application:
 
@@ -63,7 +63,7 @@ python -m backend
 The API listens only on `127.0.0.1:43128`.
 
 Local image preview endpoints:
-- `POST /api/v1/images/ocr-preview` — multipart fields `file` and optional `language` (`en`, `ch`, `japan`, `korean`, `th`).
+- `POST /api/v1/images/ocr-preview` — multipart fields `file` and optional `language` (`English`, `Chinese`, `Japanese`, `Korean`, `Thai`, or matching language code).
 - `POST /api/v1/images/group-regions` — JSON body with a `regions` list; returns suggested text blocks.
 - `POST /api/v1/images/clean-preview` — multipart fields `file`, `regions_json`, and optional `model` (`lama_manga` or `aot_gan`).
 
@@ -85,7 +85,7 @@ This repository is independent of `dxym29/t_app`. No changes are made to the Web
 
 ## End-to-end pipeline
 
-The project workspace now exposes six persisted stages: Fetch, Ollama Vision extraction,
+The project workspace now exposes six persisted stages: Fetch, PP-OCRv6 text extraction,
 LaMa AI inpainting, Gemini translation, Myanmar typesetting, and CBZ/ZIP export.
 Each stage has editable JSON input/output, a manual-output save action, and an automatic
 one-page-at-a-time chapter runner. Stage results are stored in SQLite so a reviewed result
@@ -97,13 +97,7 @@ can be reused without rerunning earlier stages.
 pip install -r backend/requirements.txt
 ```
 
-Install and start Ollama, then pull a compatible vision model:
-
-```bash
-ollama pull qwen2.5vl:3b
-```
-
-Set `GEMINI_API_KEY` in the environment before running the translation stage.
+Install CPU OCR support (PP-OCRv6 + ONNX Runtime):\n\n```bash\npip install -r backend/requirements-ocr-cpu.txt\n```\n\nEnglish is the default OCR language for English-source projects. The first Detect Text / Extract run downloads the selected model.\n\nSet `GEMINI_API_KEY` in the environment before running the translation stage.
 
 ### Optional CPU manga inpainting
 
