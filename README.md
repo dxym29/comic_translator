@@ -120,6 +120,16 @@ Install the selected Myanmar font in Windows. Pillow's RAQM text layout support 
 used when available; verify Myanmar shaping on the installed Pillow build before
 processing a full chapter.
 
+### EPUB manga import
+
+The project workspace supports importing image-based EPUB manga files through the
+**Import EPUB** control. The importer reads the EPUB package manifest and spine,
+extracts raster page images in reading order, and stores them under the selected
+project's source folder before continuing through the existing pipeline. It accepts
+EPUB files up to 500 MB, limits expanded archive content to 1 GB, and rejects
+unsupported or invalid page images. EPUBs that contain only reflowable text rather
+than page images are not converted into comic pages.
+
 ### Current operational notes
 
 - Generic Fetch supports ordinary HTML image tags. JavaScript-rendered, login-gated,
