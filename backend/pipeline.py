@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from .storage import connect, get_data_dir
@@ -214,6 +214,33 @@ def _run_stage(stage: str, data: dict, project: dict) -> dict:
         ))
         return export_chapter(data.get("pages", []), output_path, str(data.get("title", "Comic Chapter")))
     raise ValueError("Unknown pipeline stage")
+
+
+@router.post("/projects/{project_id}/import-epub")
+async def import_epub(project_id: str, file: UploadFile = File(...), chapter_id: str | None = None):
+    _ensure_table()
+    project = _project(project_id)
+    filename = file.filename or "manga.epub"
+    if Path(filename).suffix.lower() != ".epub":
+        raise HTTPException(415, "Please choose an .epub file.")
+    raw = await file.read(500 * 1024 * 1024 + 1)
+    if len(raw) > 500 * 1024 * 1024:
+        raise HTTPException(413, "EPUB file is larger than the 500 MB upload limit.")
+    try:
+        from .epub_import import extract_epub
+        output = extract_epub(raw, Path(project["storage_path"]), filename)
+        saved = _save(
+            project_id, chapter_id, "fetch", "completed",
+            {"source_type": "epub", "filename": Path(filename).name},
+            output, False
+        )
+        return {"run": saved, "import": output}
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, detail=f"EPUB import failed: {exc}") from exc
+    finally:
+        await file.close()
 
 
 @router.get("/projects/{project_id}/pipeline")
