@@ -194,6 +194,32 @@
       $("pipeline-pause").textContent = "Pause";
     }
   }
+  $("epub-import-file").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !projectId()) return;
+    const button = event.target;
+    button.disabled = true;
+    message("EPUB ဖိုင်ကို စစ်ဆေးပြီး Manga စာမျက်နှာများ ထုတ်ယူနေသည်…");
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch(api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
+        "/import-epub?chapter_id=" + encodeURIComponent(chapter()), {
+          method: "POST", body
+        });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || "EPUB import failed");
+      await reload();
+      selectStage("extract");
+      message("EPUB Import အောင်မြင်ပါပြီ။ " + result.import.count +
+        " pages ထုတ်ယူပြီးပါပြီ။ Auto run ဖြင့် Extract ကနေ ဆက်လုပ်နိုင်ပါတယ်။");
+    } catch (error) {
+      message(error.message, true);
+    } finally {
+      button.disabled = false;
+      event.target.value = "";
+    }
+  });
   $("pipeline-run").addEventListener("click", async () => {
     try { await runStage(); } catch (e) { message(e.message, true); }
   });
