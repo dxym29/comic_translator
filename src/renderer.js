@@ -103,7 +103,7 @@ function openProject(project) {
   document.getElementById("pipeline-workbench").hidden = false;
   workspaceTitle.textContent = project.name;
   workspace.hidden = true;
-  workspace.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("pipeline-workbench").scrollIntoView({ behavior: "smooth", block: "start" });
   if (window.comicPipeline) window.comicPipeline.reload().catch(error => console.error(error));
 }
 
