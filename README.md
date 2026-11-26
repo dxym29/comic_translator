@@ -49,7 +49,7 @@ python -m venv .venv
 # Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
-python -m backend.install_raqm
+python -m backend.repair_local_env
 pip install -r backend/requirements-ocr-cpu.txt
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -r backend/requirements-lama-cpu.txt
@@ -62,8 +62,7 @@ PaddleOCR downloads its selected model files on first use. Inpainting model weig
 
 Designed for CPU-first operation on an Intel Core i5-8265U with 16 GB RAM and Intel UHD 620. Image processing runs one page at a time. Large chapters and local model inference may take time.
 
-## Important limitations
-
+## Local environment repair\n\nRun `python -m backend.repair_local_env` after installing the base requirements. It installs the verified FriBiDi runtime, verifies Pillow RAQM, and removes the obsolete `simple-lama-inpainting` package if it is present. The current inpainting implementation uses the project's TorchScript models directly and does not require `simple-lama-inpainting`.\n\n## Important limitations\n
 - OCR detects text lines, not guaranteed speech-bubble boundaries. Review and correct regions before removing text.
 - AI inpainting depends on mask quality and surrounding artwork; inspect each result.
 - Myanmar text rendering uses Pillow RAQM + FriBiDi; the setup downloads the required FriBiDi DLL automatically on Windows.
