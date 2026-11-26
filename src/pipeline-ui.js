@@ -135,6 +135,14 @@
       });
     history[stage] = result.run;
     $("pipeline-output").value = json(result.run.output);
+    if (stage === "export" && result.run.output.file_path) {
+      const link = $("export-download");
+      link.href = api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
+        "/export-file?path=" + encodeURIComponent(result.run.output.file_path);
+      link.hidden = false;
+      link.textContent = "Download " + (result.run.output.format || "chapter") +
+        " (" + result.run.output.page_count + " pages)";
+    }
     updatePreviews();
     renderStages(history);
     message(labels[names.indexOf(stage)] + " ပြီးပါပြီ။");
