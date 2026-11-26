@@ -5,7 +5,8 @@ from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile, ZIP_STORED
 from typing import Any
 import mimetypes
-import re
+from datetime import datetime, timezone
+from uuid import uuid4
 
 
 def export_epub(pages: list[dict], output_path: str, title: str = "Comic Chapter") -> dict[str, Any]:
@@ -20,6 +21,8 @@ def export_epub(pages: list[dict], output_path: str, title: str = "Comic Chapter
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     safe_title = escape(title or "Comic Chapter")
+    identifier = "urn:uuid:" + str(uuid4())
+    modified = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     with ZipFile(destination, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip", compress_type=ZIP_STORED)
         archive.writestr("META-INF/container.xml",
@@ -57,8 +60,9 @@ def export_epub(pages: list[dict], output_path: str, title: str = "Comic Chapter
             '<?xml version="1.0" encoding="UTF-8"?>'
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">'
             '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
-            '<dc:identifier id="bookid">urn:uuid:comic-translator-export</dc:identifier>'
-            '<dc:title>' + safe_title + '</dc:title><dc:language>my</dc:language></metadata>'
+            '<dc:identifier id="bookid">' + identifier + '</dc:identifier>'
+            '<dc:title>' + safe_title + '</dc:title><dc:language>my</dc:language>'
+            '<meta property="dcterms:modified">' + modified + '</meta></metadata>'
             '<manifest>' + "".join(manifest) + '</manifest><spine>' + "".join(spine)
             + '</spine></package>', compress_type=ZIP_DEFLATED)
     return {"file_path": str(destination), "format": "EPUB", "page_count": len(files), "title": title}
