@@ -14,7 +14,7 @@ MAX_PAGES = 2000
 
 
 def _natural_key(value: str):
-    return [int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\\d+)", value)]
+    return [int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", value)]
 
 
 def _validate_image(raw: bytes, name: str) -> str:
