@@ -51,35 +51,61 @@
         </div>
       </section>
       <section id="pipeline-workbench" class="pipeline-workbench" hidden>
-        <div class="section-heading"><div><span class="eyebrow">END-TO-END CHAPTER PIPELINE</span><h2>Translation workflow</h2></div><div class="workspace-heading-actions"><label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label><button id="close-workspace" class="secondary-button">Back to projects</button></div></div>
-        <div class="pipeline-stage-list" id="pipeline-stage-list"></div>
-        <div class="pipeline-actions import-actions">
+        <div class="section-heading">
+          <div><span class="eyebrow">PROJECT WORKSPACE</span><h2 id="workspace-title">Comic project</h2></div>
+          <button id="close-workspace" class="secondary-button">Back to projects</button>
+        </div>
+
+        <div class="page-navigation">
+          <button id="page-previous" class="secondary-button" disabled>← Previous</button>
+          <div class="page-counter"><strong id="page-counter">No pages imported</strong><small id="page-file-name">EPUB / ZIP / Images</small></div>
+          <button id="page-next" class="secondary-button" disabled>Next →</button>
+        </div>
+
+        <div class="import-actions">
           <label class="file-picker">Import EPUB<input id="epub-import-file" type="file" accept=".epub,application/epub+zip"></label>
           <label class="file-picker">Import ZIP<input id="zip-import-file" type="file" accept=".zip,application/zip"></label>
           <label class="file-picker">Add images<input id="images-import-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" multiple></label>
-          <label class="engine-select-label">Text removal<select id="inpainting-model"><option value="lama_manga">LaMa Manga</option><option value="aot_gan">AOT-GAN</option></select></label>
-          <button id="pipeline-auto" class="primary-button">Start translation</button>
-          <button id="pipeline-pause" class="secondary-button" disabled>Pause</button>
+          <label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label>
         </div>
-        <div class="pipeline-manual-actions">
-          <button id="pipeline-run" class="secondary-button">Run selected step</button>
-          <button id="pipeline-save" class="secondary-button">Save edited result</button>
-          <button id="pipeline-next" class="secondary-button">Next step</button>
-          <button id="pipeline-refresh" class="secondary-button">Refresh</button>
-        </div>
-        <a id="export-download" class="file-download" hidden>Download finished chapter</a>
-        <p id="pipeline-message" class="ocr-message">Choose a stage. Review and edit its JSON input/output before continuing.</p>
-        <div class="pipeline-image-previews">
-          <div><strong>Input image</strong><img id="pipeline-input-image" alt="Pipeline input image" hidden></div>
-          <div><strong>Output image</strong><img id="pipeline-output-image" alt="Pipeline output image" hidden></div>
-        </div>
-        <details class="advanced-editor">
-          <summary>Advanced review · Editable stage data</summary>
-          <div class="pipeline-editors">
-            <label>Stage input (editable JSON)<textarea id="pipeline-input" spellcheck="false">{}</textarea></label>
-            <label>Stage output (editable JSON)<textarea id="pipeline-output" spellcheck="false">{}</textarea></label>
+
+        <div class="process-panel">
+          <div class="process-heading"><div><span class="eyebrow">LIVE PROCESS</span><strong id="process-status">ဖိုင် Import လုပ်ပြီး စတင်နိုင်ပါပြီ။</strong></div><strong id="process-percent">0%</strong></div>
+          <div class="progress-track"><div id="process-progress" class="progress-fill"></div></div>
+          <div class="process-meta"><span id="process-step">အဆင့် — မစရသေးပါ</span><span id="process-page">စာမျက်နှာ —</span></div>
+          <div class="process-controls">
+            <button id="pipeline-auto" class="primary-button">Auto Run · အားလုံးလုပ်ရန်</button>
+            <button id="pipeline-pause" class="secondary-button" disabled>Pause</button>
+            <button id="pipeline-stop" class="secondary-button" disabled>ရပ်ရန်</button>
           </div>
-        </details>
+        </div>
+
+        <div class="stage-workspace">
+          <div class="stage-sidebar">
+            <h3>လုပ်ဆောင်မည့်အဆင့်</h3>
+            <div class="pipeline-stage-list" id="pipeline-stage-list"></div>
+            <div class="pipeline-manual-actions">
+              <button id="pipeline-run" class="primary-button">ဒီအဆင့်ကို Run လုပ်ရန်</button>
+              <button id="pipeline-save" class="secondary-button">ပြင်ဆင်ချက် သိမ်းရန်</button>
+              <button id="pipeline-next" class="secondary-button">နောက်အဆင့် →</button>
+            </div>
+          </div>
+          <div class="stage-main">
+            <div class="pipeline-image-previews">
+              <div><strong>မူရင်း / Input Preview</strong><img id="pipeline-input-image" alt="Input page preview" hidden><p id="pipeline-input-empty" class="preview-empty">ပုံမရှိသေးပါ</p></div>
+              <div><strong>ရလဒ် / Output Preview</strong><img id="pipeline-output-image" alt="Output page preview" hidden><p id="pipeline-output-empty" class="preview-empty">အဆင့်မလုပ်ရသေးပါ</p></div>
+            </div>
+            <p id="pipeline-message" class="ocr-message">EPUB / ZIP / ပုံ Import လုပ်ပြီးနောက် Auto Run သို့မဟုတ် Manual ကိုရွေးနိုင်ပါတယ်။</p>
+            <a id="export-download" class="file-download" hidden>ပြီးဆုံးသောဖိုင် Download</a>
+            <details class="advanced-editor">
+              <summary>အသေးစိတ်ပြင်ဆင်ရန် (Advanced)</summary>
+              <div class="pipeline-editors">
+                <label>အဆင့် Input (JSON)<textarea id="pipeline-input" spellcheck="false">{}</textarea></label>
+                <label>အဆင့် Output (JSON)<textarea id="pipeline-output" spellcheck="false">{}</textarea></label>
+              </div>
+            </details>
+          </div>
+        </div>
       </section>
       <section class="info-grid">
         <article class="info-card"><span class="card-label">TRANSLATION ENGINE</span><h3>Gemini 3.1 Flash-Lite</h3><p>Primary model with Gemini 3.5 Flash-Lite quota fallback.</p><span class="tag">Next stage</span></article>
