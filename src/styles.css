@@ -73,3 +73,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .file-download:hover{background:#274534}
 .pipeline-workbench .section-heading h2{margin-bottom:0}
 @media(max-width:640px){.import-actions{display:grid;grid-template-columns:1fr}.import-actions .file-picker{width:100%}.pipeline-manual-actions>*{flex:1}}
+
+.workspace-heading-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media(max-width:640px){.workspace-heading-actions{width:100%}.workspace-heading-actions>*{flex:1}}
