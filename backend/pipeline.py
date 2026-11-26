@@ -11,6 +11,7 @@ from typing import Any
 
 import requests
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .storage import connect, get_data_dir
@@ -254,8 +255,17 @@ async def import_manual_images(
             entries.append((upload.filename or "page.png", raw))
         from .file_import import import_images
         output = import_images(entries, Path(project["storage_path"]))
+        previous = next((item for item in reversed(_latest(project_id, chapter_id))
+                         if item["stage"] == "import"), None)
+        previous_output = previous["output"] if previous else {}
+        if previous_output.get("source_type") == "images":
+            combined = list(previous_output.get("pages", [])) + list(output.get("pages", []))
+            for index, page in enumerate(combined, 1):
+                page["index"] = index
+            output["pages"] = combined
+            output["count"] = len(combined)
         saved = _save(project_id, chapter_id, "import", "completed",
-                      {"source_type": "images", "file_count": len(entries)}, output)
+                      {"source_type": "images", "file_count": len(output["pages"])}, output)
         return {"run": saved, "import": output}
     except ValueError as exc:
         raise HTTPException(422, detail=str(exc)) from exc
@@ -264,6 +274,20 @@ async def import_manual_images(
     finally:
         for upload in files:
             await upload.close()
+
+
+@router.get("/projects/{project_id}/export-file")
+def download_export(project_id: str, path: str):
+    project = _project(project_id)
+    root = (Path(project["storage_path"]) / "exports").resolve()
+    candidate = Path(path).expanduser().resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        raise HTTPException(403, "Export path is outside this project.")
+    if not candidate.is_file() or candidate.suffix.lower() not in {".epub", ".zip", ".cbz"}:
+        raise HTTPException(404, "Export file not found.")
+    return FileResponse(candidate, filename=candidate.name)
 
 
 @router.get("/projects/{project_id}/pipeline")
