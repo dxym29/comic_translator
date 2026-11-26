@@ -121,7 +121,7 @@ def project_image(project_id: str, path: str):
         candidate.relative_to(root)
     except ValueError:
         raise HTTPException(status_code=403, detail="Image path is outside this project folder")
-    if not candidate.is_file() or candidate.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+    if not candidate.is_file() or candidate.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}:
         raise HTTPException(status_code=404, detail="Project image not found")
     return FileResponse(candidate, media_type=mimetypes.guess_type(candidate.name)[0] or "application/octet-stream")
 
