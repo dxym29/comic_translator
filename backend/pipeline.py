@@ -51,7 +51,7 @@ def _project(project_id: str) -> dict:
 
 def _save(project_id: str, chapter_id: str | None, stage: str, status: str,
           input_data: dict, output_data: dict, manual: bool = False, error: str = "") -> dict:
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + f".{time.time_ns() % 1_000_000_000:09d}Z"
     run_id = str(uuid.uuid4())
     with connect() as db:
         db.execute("""INSERT INTO stage_runs
