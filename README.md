@@ -31,7 +31,7 @@ EPUB output preserves the EPUB file format and comic page sequence, but it is re
 - OCR: PaddleOCR 3.7.0 + ONNX Runtime CPU. English is the default; PP-OCRv6 is selected for English/Japanese/Chinese and PP-OCRv5 for Korean/Thai.
 - Text removal: selectable LaMa Manga and AOT-GAN CPU models.
 - Translation: Gemini 3.1 Flash-Lite primary, Gemini 3.5 Flash-Lite quota fallback.
-- Typesetting: Pillow RAQM + FriBiDi with the selected installed font.
+- Typesetting: Qt 6 / HarfBuzz text shaping with the selected installed Myanmar font.
 - Storage: local SQLite and project folders under `%LOCALAPPDATA%\\ComicTranslator`.
 
 ## Requirements
@@ -70,7 +70,7 @@ Run `python -m backend.repair_local_env` after installing the base requirements.
 
 - OCR detects text lines, not guaranteed speech-bubble boundaries. Review and correct regions before removing text.
 - AI inpainting depends on mask quality and surrounding artwork; inspect each result.
-- Myanmar text rendering uses Pillow RAQM + FriBiDi; the setup downloads the required FriBiDi DLL automatically on Windows.
+- Myanmar text rendering uses Qt/HarfBuzz on CPU; Pillow RAQM and FriBiDi are not required.
 - Website chapter fetching is intentionally disabled. Import files from your computer instead.
 
 ## Project separation
