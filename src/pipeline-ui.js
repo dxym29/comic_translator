@@ -1,80 +1,121 @@
 (() => {
-  const names = ["import", "extract", "remove", "translate", "typeset", "export"];
-  const labels = ["Import files", "Detect text", "Remove original text", "Translate", "Myanmar lettering", "Export"];
+  const names = ["extract", "remove", "translate", "typeset", "export"];
+  const labels = ["စာသားရှာဖွေခြင်း", "မူရင်းစာသားဖယ်ရှားခြင်း", "မြန်မာဘာသာပြန်ခြင်း", "မြန်မာစာထည့်ခြင်း", "ဖိုင်ထုတ်ခြင်း"];
   const $ = id => document.getElementById(id);
   const list = $("pipeline-stage-list");
   if (!list) return;
+
   let current = "extract";
   let history = {};
-  let activePage = null;
-  let renderedPages = [];
+  let importRecord = null;
+  let pages = [];
+  let pageIndex = 0;
   let running = false;
   let paused = false;
   let stopRequested = false;
+  let renderedPages = [];
   const chapter = () => $("pipeline-chapter").value.trim() || "chapter-1";
   const projectId = () => window.__comicSelectedProjectId;
   const api = window.comicTranslator.apiBaseUrl;
+  const pageChapter = index => chapter() + "::page-" + String(index + 1).padStart(5, "0");
+  const page = () => pages[pageIndex] || null;
+  const statusNames = { pending: "မစရသေး", completed: "ပြီးပါပြီ", reviewed: "ပြင်ဆင်ပြီး", failed: "အမှားရှိ" };
 
   function json(value) { return JSON.stringify(value ?? {}, null, 2); }
   function parseEditor(id) {
     try { return JSON.parse($(id).value || "{}"); }
-    catch { throw new Error("JSON format မမှန်ပါ။"); }
+    catch { throw new Error("JSON ပုံစံ မမှန်ပါ။"); }
   }
   function message(text, error = false) {
     $("pipeline-message").textContent = text;
     $("pipeline-message").style.color = error ? "#e0a18e" : "#a8aeb9";
+    $("process-status").textContent = text;
+  }
+  function progress(done, total, status, stage, pageNo) {
+    const percent = total ? Math.min(100, Math.round(done / total * 100)) : 0;
+    $("process-progress").style.width = percent + "%";
+    $("process-percent").textContent = percent + "%";
+    $("process-status").textContent = status;
+    $("process-step").textContent = "အဆင့် — " + (stage || "မစရသေး");
+    $("process-page").textContent = "စာမျက်နှာ " + (pageNo || (pages.length ? pageIndex + 1 : "—")) + " / " + (pages.length || "—");
   }
   async function request(path, options = {}) {
     const response = await fetch(api + path, {
       ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+      headers: { ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...(options.headers || {}) }
     });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.detail || "Pipeline request failed");
+    if (!response.ok) throw new Error(body.detail || "လုပ်ဆောင်မှု မအောင်မြင်ပါ။");
     return body;
   }
-  function renderStages(state = {}) {
+  async function loadImport() {
+    const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
+      "/pipeline?chapter_id=" + encodeURIComponent(chapter()));
+    const record = (result.stages || []).find(item => item.name === "import");
+    importRecord = record && record.output?.pages?.length ? record : null;
+    pages = importRecord?.output?.pages || [];
+    if (pageIndex >= pages.length) pageIndex = Math.max(0, pages.length - 1);
+    updatePageNavigation();
+  }
+  async function loadPageHistory() {
+    history = {};
+    if (!page()) return;
+    const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
+      "/pipeline?chapter_id=" + encodeURIComponent(pageChapter(pageIndex)));
+    for (const item of result.stages || []) history[item.name] = item;
+  }
+  function renderStages() {
     list.innerHTML = "";
-    for (const [i, stage] of names.entries()) {
-      const item = state[stage] || {};
+    names.forEach((stage, index) => {
+      const item = history[stage] || {};
       const button = document.createElement("button");
       button.className = "pipeline-stage" + (stage === current ? " active" : "");
       const status = item.status || "pending";
-      button.innerHTML = '<span class="pipeline-stage-number">' + String(i + 1).padStart(2, "0") +
+      button.innerHTML = '<span class="pipeline-stage-number">' + String(index + 1).padStart(2, "0") +
         '</span><span class="pipeline-stage-title"></span><small class="pipeline-stage-status"></small>';
-      button.querySelector(".pipeline-stage-title").textContent = labels[i];
-      button.querySelector(".pipeline-stage-status").textContent = status;
+      button.querySelector(".pipeline-stage-title").textContent = labels[index];
+      button.querySelector(".pipeline-stage-status").textContent = statusNames[status] || status;
       button.dataset.status = status;
-      button.disabled = stage === "import";
-      button.title = stage === "import" ? "Use the file import buttons above." : labels[i];
       button.addEventListener("click", () => selectStage(stage));
       list.append(button);
-    }
+    });
   }
-  function previewImage(elementId, data) {
-    const image = $(elementId);
-    let path = "";
-    try {
-      const value = typeof data === "string" ? JSON.parse(data || "{}") : data;
-      path = value.image_path || value.pages?.[0]?.image_path || "";
-    } catch {}
-    if (!path || !projectId()) { image.hidden = true; image.removeAttribute("src"); return; }
+  function imagePath(value) {
+    if (!value || typeof value !== "object") return "";
+    return value.image_path || value.cleaned_image_path || value.pages?.[0]?.image_path || "";
+  }
+  function setPreview(imageId, emptyId, path, emptyText) {
+    const image = $(imageId);
+    const empty = $(emptyId);
+    if (!path || !projectId()) {
+      image.hidden = true;
+      image.removeAttribute("src");
+      empty.hidden = false;
+      empty.textContent = emptyText;
+      return;
+    }
     image.src = api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
-      "/image?path=" + encodeURIComponent(path);
+      "/image?path=" + encodeURIComponent(path) + "&v=" + Date.now();
     image.hidden = false;
+    empty.hidden = true;
   }
   function updatePreviews() {
-    previewImage("pipeline-input-image", $("pipeline-input").value);
-    previewImage("pipeline-output-image", $("pipeline-output").value);
+    let input = {}, output = {};
+    try { input = parseEditor("pipeline-input"); } catch {}
+    try { output = parseEditor("pipeline-output"); } catch {}
+    const source = page()?.image_path || "";
+    const inPath = imagePath(input) || source;
+    let outPath = imagePath(output);
+    if (!outPath && ["translate", "extract"].includes(current)) outPath = imagePath(history.remove?.output) || source;
+    if (!outPath && current === "remove") outPath = source;
+    setPreview("pipeline-input-image", "pipeline-input-empty", inPath, "မူရင်းစာမျက်နှာ ပုံမရှိသေးပါ");
+    setPreview("pipeline-output-image", "pipeline-output-empty", outPath, "ဒီအဆင့်ရဲ့ ရလဒ် မရှိသေးပါ");
   }
   function defaultInput(stage) {
-    if (stage === "import") return {};
-    if (stage === "extract") {
-      const pages = history.import?.output?.pages || [];
-      return { image_path: activePage?.image_path || pages[0]?.image_path || "" };
-    }
+    const source = page()?.image_path || "";
+    if (stage === "extract") return { image_path: source };
     if (stage === "remove") return {
-      image_path: activePage?.image_path || history.extract?.output?.image_path || "",
+      image_path: history.extract?.output?.image_path || source,
       regions: history.extract?.output?.regions || [],
       model: $("inpainting-model")?.value || "lama_manga",
       padding_ratio: 0.18
@@ -87,138 +128,177 @@
       const translations = history.translate?.output?.translations || [];
       const byId = new Map(translations.map(t => [String(t.id), t.text]));
       return {
-        image_path: history.remove?.output?.image_path || "",
+        image_path: history.remove?.output?.image_path || history.extract?.output?.image_path || source,
         regions: regions.map((r, i) => ({ ...r, translated_text: byId.get(String(r.id || i + 1)) || "" })),
         font_family: window.__comicSelectedProject?.font_family || "Noto Sans Myanmar",
         style: window.__comicSelectedProject?.typesetting_style || "original_bubble"
       };
     }
-    if (stage === "export") {
-      const imagePath = history.typeset?.output?.image_path || "";
-      const sourceType = history.import?.output?.source_type || "images";
-      return {
-        title: history.import?.output?.title || window.__comicSelectedProject?.name || "Comic Chapter",
-        chapter_number: chapter(),
-        format: sourceType === "epub" ? "epub" : "zip",
-        pages: imagePath ? [{ index: 1, image_path: imagePath }] : []
-      };
-    }
     return {};
+  }
+  async function exportInput() {
+    const outputs = [];
+    for (let i = 0; i < pages.length; i++) {
+      const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
+        "/pipeline?chapter_id=" + encodeURIComponent(pageChapter(i)));
+      const typeset = (result.stages || []).find(item => item.name === "typeset");
+      const path = typeset?.output?.image_path;
+      if (path) outputs.push({ index: outputs.length + 1, image_path: path });
+    }
+    return {
+      title: importRecord?.output?.title || window.__comicSelectedProject?.name || "Comic Chapter",
+      chapter_number: chapter(),
+      format: importRecord?.output?.source_type === "epub" ? "epub" : "zip",
+      pages: outputs
+    };
+  }
+  async function prepareStage(stage) {
+    if (stage === "export") return await exportInput();
+    return history[stage]?.input || defaultInput(stage);
   }
   function showCurrent() {
     const item = history[current] || {};
-    const stageInput = item.input || defaultInput(current);
-    $("pipeline-input").value = json(stageInput);
+    $("pipeline-input").value = json(item.input || defaultInput(current));
     $("pipeline-output").value = json(item.output || {});
-    const modelSelect = $("inpainting-model");
-    if (modelSelect) modelSelect.closest("label").hidden = current !== "remove";
-    if (modelSelect) modelSelect.value = stageInput.model || "lama_manga";
-    renderStages(history);
+    const model = $("inpainting-model");
+    if (model) {
+      model.closest("label").hidden = current !== "remove";
+      model.value = (item.input || {}).model || "lama_manga";
+    }
+    renderStages();
     updatePreviews();
+    updatePageNavigation();
   }
-  function selectStage(stage) {
+  async function selectStage(stage) {
     current = stage;
+    if (stage === "export") $("pipeline-input").value = json(await exportInput());
+    else $("pipeline-input").value = json(await prepareStage(stage));
+    $("pipeline-output").value = json(history[stage]?.output || {});
     showCurrent();
-    message("ရွေးထားသောအဆင့် — " + labels[names.indexOf(stage)]);
+    progress(0, 0, labels[names.indexOf(stage)] + " ကို ရွေးထားသည်။", labels[names.indexOf(stage)], null);
+  }
+  function updatePageNavigation() {
+    $("page-counter").textContent = pages.length ? "စာမျက်နှာ " + (pageIndex + 1) + " / " + pages.length : "စာမျက်နှာ မရှိသေးပါ";
+    $("page-file-name").textContent = page()?.filename || page()?.source_member || (pages.length ? "Imported comic page" : "EPUB / ZIP / Images ကို Import လုပ်ပါ");
+    $("page-previous").disabled = running || pageIndex <= 0;
+    $("page-next").disabled = running || pageIndex >= pages.length - 1;
+    $("pipeline-auto").disabled = running || !pages.length;
+    $("pipeline-run").disabled = running || !page();
+    $("pipeline-save").disabled = running || !page();
+    $("pipeline-next").disabled = running || !page() || current === "export";
   }
   async function reload() {
     if (!projectId()) return;
-    const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
-      "/pipeline?chapter_id=" + encodeURIComponent(chapter()));
-    history = {};
-    for (const item of result.stages || []) history[item.name] = item;
+    pageIndex = 0;
+    await loadImport();
+    if (page()) await loadPageHistory();
+    current = "extract";
     showCurrent();
+    progress(0, 0, pages.length ? "Import ပြီးပါပြီ။ Auto Run သို့မဟုတ် Manual ကိုရွေးပါ။" : "EPUB / ZIP / ပုံဖိုင် Import လုပ်ပါ။", "မစရသေး", null);
   }
-  async function runStage(stage = current) {
-    const input = parseEditor("pipeline-input");
+  function showExportLink(output) {
+    const link = $("export-download");
+    if (!output?.file_path) { link.hidden = true; return; }
+    link.href = api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
+      "/export-file?path=" + encodeURIComponent(output.file_path);
+    link.hidden = false;
+    link.textContent = (output.format || "ဖိုင်") + " · " + (output.page_count || pages.length) + " မျက်နှာ Download";
+  }
+  async function runStage(stage = current, options = {}) {
+    const input = options.input || parseEditor("pipeline-input");
+    const chapterId = stage === "export" ? chapter() : pageChapter(pageIndex);
+    const stageLabel = labels[names.indexOf(stage)];
+    if (!options.silent) {
+      message("လုပ်ဆောင်နေသည် — " + stageLabel + "…");
+      progress(options.done || 0, options.total || 1, "လုပ်ဆောင်နေသည် — " + stageLabel + "…", stageLabel, pageIndex + 1);
+    }
     const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
-      "/pipeline/" + stage + "/run?chapter_id=" + encodeURIComponent(chapter()), {
+      "/pipeline/" + stage + "/run?chapter_id=" + encodeURIComponent(chapterId), {
         method: "POST", body: JSON.stringify({ input })
       });
-    history[stage] = result.run;
+    if (stage !== "export") history[stage] = result.run;
     $("pipeline-output").value = json(result.run.output);
-    if (stage === "export" && result.run.output.file_path) {
-      const link = $("export-download");
-      link.href = api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
-        "/export-file?path=" + encodeURIComponent(result.run.output.file_path);
-      link.hidden = false;
-      link.textContent = "Download " + (result.run.output.format || "chapter") +
-        " (" + result.run.output.page_count + " pages)";
-    }
+    if (stage === "export") showExportLink(result.run.output);
     updatePreviews();
-    renderStages(history);
-    message(labels[names.indexOf(stage)] + " ပြီးပါပြီ။");
+    renderStages();
+    if (!options.silent) message(stageLabel + " ပြီးပါပြီ။");
     return result.run.output;
   }
   async function saveOutput() {
     const output = parseEditor("pipeline-output");
     const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
-      "/pipeline/" + current + "/output?chapter_id=" + encodeURIComponent(chapter()), {
+      "/pipeline/" + current + "/output?chapter_id=" + encodeURIComponent(pageChapter(pageIndex)), {
         method: "PUT", body: JSON.stringify({ output })
       });
     history[current] = result.run;
-    renderStages(history);
-    message("ပြင်ဆင်ထားသော Output ကို သိမ်းပြီးပါပြီ။");
+    renderStages();
+    updatePreviews();
+    message("ပြင်ဆင်ထားတဲ့ ရလဒ်ကို သိမ်းပြီးပါပြီ။");
   }
   async function waitIfPaused() {
-    while (paused && !stopRequested) await new Promise(resolve => setTimeout(resolve, 250));
-    if (stopRequested) throw new Error("Paused by user");
+    while (paused && !stopRequested) await new Promise(resolve => setTimeout(resolve, 200));
+    if (stopRequested) throw new Error("ရပ်တန့်ရန် တောင်းဆိုထားသည်။");
   }
   async function autoRun() {
-    if (running) return;
-    const pages = history.import?.output?.pages || [];
-    if (!pages.length) {
-      message("အရင်ဆုံး EPUB, ZIP သို့မဟုတ် ပုံဖိုင်တွေ Import လုပ်ပါ။", true);
-      return;
-    }
-    running = true; paused = false; stopRequested = false; renderedPages = [];
+    if (running || !pages.length) return;
+    running = true; paused = false; stopRequested = false;
+    renderedPages = [];
     $("pipeline-auto").disabled = true;
     $("pipeline-pause").disabled = false;
+    $("pipeline-stop").disabled = false;
+    updatePageNavigation();
+    const steps = ["extract", "remove", "translate", "typeset"];
+    const total = pages.length * steps.length + 1;
+    let done = 0;
     try {
-      const firstStage = Math.max(1, names.indexOf(current));
       for (let p = 0; p < pages.length; p++) {
-        activePage = pages[p];
-        message("Page " + (p + 1) + "/" + pages.length + " ကို လုပ်ဆောင်နေသည်…");
-        for (let i = firstStage; i <= 4; i++) {
+        await waitIfPaused();
+        pageIndex = p;
+        await loadPageHistory();
+        current = "extract";
+        for (const stage of steps) {
           await waitIfPaused();
-          current = names[i];
-          $("pipeline-input").value = json(defaultInput(current));
-          $("pipeline-output").value = "{}";
+          current = stage;
+          const stageLabel = labels[names.indexOf(stage)];
           showCurrent();
-          message("Page " + (p + 1) + "/" + pages.length + " · " + labels[i] + "…");
-          const output = await runStage(current);
-          if (i === 4 && output.image_path) renderedPages.push({ index: p + 1, image_path: output.image_path });
+          progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " လုပ်နေသည်…", stageLabel, p + 1);
+          const input = await prepareStage(stage);
+          const output = await runStage(stage, { input, silent: true, done, total });
+          done++;
+          progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " ပြီးပါပြီ။", stageLabel, p + 1);
+          if (stage === "typeset" && output.image_path) renderedPages.push({ index: p + 1, image_path: output.image_path });
         }
       }
       await waitIfPaused();
       current = "export";
-      const sourceType = history.import?.output?.source_type || "images";
-      $("pipeline-input").value = json({
-        title: history.import?.output?.title || window.__comicSelectedProject?.name || "Comic Chapter",
-        chapter_number: chapter(),
-        format: sourceType === "epub" ? "epub" : "zip",
-        pages: renderedPages
-      });
+      const input = await exportInput();
+      if (!input.pages.length) throw new Error("ထုတ်ရန် Typeset ပြီးသော စာမျက်နှာ မရှိပါ။");
+      $("pipeline-input").value = json(input);
+      $("pipeline-output").value = "{}";
       showCurrent();
-      message((sourceType === "epub" ? "EPUB" : "ZIP") + " export လုပ်နေသည်…");
-      await runStage("export");
-      message("ပြီးပါပြီ။ " + renderedPages.length + " pages ကို " +
-        (sourceType === "epub" ? "EPUB" : "ZIP") + " အဖြစ် ထုတ်ပြီးပါပြီ။");
+      progress(done, total, "နောက်ဆုံးဖိုင်ကို Export လုပ်နေသည်…", labels[4], pages.length);
+      const output = await runStage("export", { input, silent: true });
+      done++;
+      progress(total, total, "အားလုံးပြီးပါပြီ။ " + output.page_count + " မျက်နှာ Export လုပ်ပြီးပါပြီ။", "ပြီးဆုံး", pages.length);
+      message("လုပ်ငန်းစဉ် အောင်မြင်စွာ ပြီးဆုံးပါပြီ။");
     } catch (error) {
-      if (stopRequested) message("Pause လုပ်ထားသည်။ ပြီးပြီးသားအဆင့်များကို သိမ်းထားသည်။");
-      else message("ရပ်သွားသည်: " + error.message, true);
+      message(stopRequested ? "လုပ်ငန်းစဉ်ကို ရပ်ထားပါတယ်။ ပြီးပြီးသားစာမျက်နှာတွေကို သိမ်းထားပါတယ်။" : "လုပ်ဆောင်မှု မအောင်မြင်ပါ — " + error.message, !stopRequested);
     } finally {
-      running = false; paused = false; activePage = null;
-      $("pipeline-auto").disabled = false;
+      running = false; paused = false; stopRequested = false;
       $("pipeline-pause").disabled = true;
+      $("pipeline-stop").disabled = true;
       $("pipeline-pause").textContent = "Pause";
+      await loadPageHistory().catch(() => {});
+      showCurrent();
+      updatePageNavigation();
     }
   }
   async function importFiles(input, kind) {
     const files = [...(input.files || [])];
     if (!files.length || !projectId()) return;
     input.disabled = true;
-    message("ဖိုင်များကို Import လုပ်နေသည်…");
+    message("ဖိုင်တွေကို Import လုပ်နေပါတယ်…");
+    progress(0, 1, "ဖိုင်တွေကို Import လုပ်နေပါတယ်…", "Import", 0);
     try {
       const body = new FormData();
       const endpoint = kind === "images" ? "import-images" : "import-" + kind;
@@ -227,38 +307,61 @@
       const response = await fetch(api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
         "/" + endpoint + "?chapter_id=" + encodeURIComponent(chapter()), { method: "POST", body });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.detail || "Import failed");
-      history.import = result.run;
+      if (!response.ok) throw new Error(result.detail || "Import မအောင်မြင်ပါ။");
+      importRecord = result.run;
+      pages = result.import.pages || [];
+      pageIndex = 0;
+      history = {};
       current = "extract";
+      await loadPageHistory();
       showCurrent();
-      message("Import အောင်မြင်ပါပြီ။ စာမျက်နှာ " + result.import.count +
-        " ခု ထည့်ပြီးပါပြီ။ Auto Run ကိုနှိပ်ပါ။");
+      progress(1, 1, "Import ပြီးပါပြီ။ အလိုအလျောက် မစပါ။ Auto Run သို့မဟုတ် Manual ကိုရွေးပါ။", "Import ပြီး", 1);
+      message("Import အောင်မြင်ပါတယ်။ စာမျက်နှာ " + pages.length + " ခု ရပါပြီ။ အခုမှ စတင်ရန် ရွေးချယ်နိုင်ပါတယ်။");
     } catch (error) {
-      message(error.message, true);
+      message("Import မအောင်မြင်ပါ — " + error.message, true);
     } finally {
       input.disabled = false;
       input.value = "";
+      updatePageNavigation();
     }
   }
+  async function changePage(delta) {
+    if (running || !pages.length) return;
+    pageIndex = Math.max(0, Math.min(pages.length - 1, pageIndex + delta));
+    await loadPageHistory();
+    showCurrent();
+    message("စာမျက်နှာ " + (pageIndex + 1) + " ကို ပြထားပါတယ်။");
+  }
+
   $("epub-import-file").addEventListener("change", event => importFiles(event.target, "epub"));
   $("zip-import-file").addEventListener("change", event => importFiles(event.target, "zip"));
   $("images-import-file").addEventListener("change", event => importFiles(event.target, "images"));
+  $("page-previous").addEventListener("click", () => changePage(-1).catch(error => message(error.message, true)));
+  $("page-next").addEventListener("click", () => changePage(1).catch(error => message(error.message, true)));
   $("pipeline-run").addEventListener("click", async () => {
-    try { await runStage(); } catch (error) { message(error.message, true); }
+    try {
+      const input = current === "export" ? await exportInput() : await prepareStage(current);
+      $("pipeline-input").value = json(input);
+      await runStage(current, { input });
+    } catch (error) { message("အဆင့် မအောင်မြင်ပါ — " + error.message, true); }
   });
-  $("pipeline-save").addEventListener("click", async () => {
-    try { await saveOutput(); } catch (error) { message(error.message, true); }
-  });
+  $("pipeline-save").addEventListener("click", () => saveOutput().catch(error => message(error.message, true)));
   $("pipeline-next").addEventListener("click", () => {
-    const i = names.indexOf(current);
-    if (i < names.length - 1) selectStage(names[i + 1]);
+    const index = names.indexOf(current);
+    if (index < names.length - 1) selectStage(names[index + 1]).catch(error => message(error.message, true));
   });
   $("pipeline-auto").addEventListener("click", autoRun);
   $("pipeline-pause").addEventListener("click", () => {
     if (!running) return;
     paused = !paused;
-    $("pipeline-pause").textContent = paused ? "Resume" : "Pause";
-    message(paused ? "Pause requested. လက်ရှိအဆင့်ပြီးရင် ရပ်စောင့်မယ်။" : "ဆက်လက်လုပ်ဆောင်နေသည်။");
+    $("pipeline-pause").textContent = paused ? "ဆက်လုပ်ရန်" : "ခဏရပ်";
+    message(paused ? "လက်ရှိအဆင့်ပြီးတာနဲ့ ခဏရပ်စောင့်ပါမယ်။" : "လုပ်ငန်းစဉ် ပြန်စနေပါတယ်။");
+  });
+  $("pipeline-stop").addEventListener("click", () => {
+    if (!running) return;
+    stopRequested = true;
+    paused = false;
+    message("လက်ရှိလုပ်ဆောင်နေတဲ့ အဆင့်ပြီးတာနဲ့ ရပ်ပါမယ်။");
   });
   $("pipeline-refresh").addEventListener("click", () => reload().catch(error => message(error.message, true)));
   $("inpainting-model").addEventListener("change", () => {
@@ -272,6 +375,6 @@
   $("pipeline-input").addEventListener("input", updatePreviews);
   $("pipeline-output").addEventListener("input", updatePreviews);
   $("pipeline-chapter").addEventListener("change", () => reload().catch(error => message(error.message, true)));
-  window.comicPipeline = { reload, selectStage };
+  window.comicPipeline = { reload, selectStage, changePage };
   renderStages();
 })();
