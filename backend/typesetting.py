@@ -68,8 +68,11 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     source = Path(image_path)
     if not source.is_file():
         raise ValueError("typeset stage requires a valid cleaned image_path")
-    if not features.check("raqm"):
-        raise RuntimeError("This Pillow build has no RAQM text shaping. Install a Pillow build with libraqm support before Myanmar typesetting.")
+    # Prefer RAQM for correct Myanmar shaping. Some Windows/Python builds
+    # ship Pillow without libraqm; allow a BASIC fallback so the pipeline can
+    # complete, and expose the limitation in the stage result.
+    raqm_available = bool(features.check("raqm"))
+    layout_engine = ImageFont.Layout.RAQM if raqm_available else ImageFont.Layout.BASIC
     font_path = _font_path(font_family)
     image = Image.open(source).convert("RGB")
     draw = ImageDraw.Draw(image)
@@ -89,7 +92,7 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
         max_w, max_h = max(1, w - inset * 2), max(1, h - inset * 2)
         chosen, wrapped = None, text
         for size in range(max(8, int(font_size)), 7, -1):
-            font = ImageFont.truetype(font_path, size, layout_engine=ImageFont.Layout.RAQM)
+            font = ImageFont.truetype(font_path, size, layout_engine=layout_engine)
             candidate = _wrap(text, font, draw, max_w)
             box = draw.multiline_textbbox((0, 0), candidate, font=font, spacing=max(1, size // 6),
                                           align="center", stroke_width=0)
@@ -97,7 +100,7 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
                 chosen, wrapped = font, candidate
                 break
         if chosen is None:
-            chosen = ImageFont.truetype(font_path, 8)
+            chosen = ImageFont.truetype(font_path, 8, layout_engine=layout_engine)
             wrapped = _wrap(text, chosen, draw, max_w)
         bbox = draw.multiline_textbbox((0, 0), wrapped, font=chosen, spacing=2, align="center")
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -112,4 +115,4 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     image.save(target, format="PNG", optimize=True)
     return {"image_path": str(target), "rendered_regions": rendered,
             "font_family": font_family, "font_path": font_path,
-            "raqm_available": True}
+            "raqm_available": raqm_available,\n            "warning": "" if raqm_available else "Pillow has no libraqm; basic text layout was used and Myanmar shaping may be imperfect. Install a Pillow build with libraqm for best results."}
