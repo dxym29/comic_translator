@@ -35,13 +35,15 @@ def main() -> None:
     remove_unused_legacy_package()
     install_qt_text_engine()
 
-    from PySide6.QtCore import QT_VERSION_STR
+    from PySide6 import __version__ as pyside_version
+    from PySide6.QtCore import qVersion
     from PySide6.QtGui import QGuiApplication
 
     app = QGuiApplication.instance()
     if app is None:
         app = QGuiApplication([])
-    print(f"Qt: {QT_VERSION_STR}")
+    print(f"PySide6: {pyside_version}")
+    print(f"Qt runtime: {qVersion()}")
     print("Qt HarfBuzz text engine: ready")
     print("Comic Translator Myanmar typesetting environment is ready.")
 
