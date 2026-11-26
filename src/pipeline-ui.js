@@ -155,7 +155,11 @@
   }
   async function prepareStage(stage) {
     if (stage === "export") return await exportInput();
-    return history[stage]?.input || defaultInput(stage);
+    const saved = history[stage];
+    // Reuse a successful/reviewed run, but rebuild failed/pending inputs from
+    // the latest upstream output so a failed attempt cannot poison retries.
+    if (saved && ["completed", "reviewed"].includes(saved.status)) return saved.input || defaultInput(stage);
+    return defaultInput(stage);
   }
   function showCurrent() {
     const item = history[current] || {};
@@ -345,8 +349,9 @@
   $("page-next").addEventListener("click", () => changePage(1).catch(error => message(error.message, true)));
   $("pipeline-run").addEventListener("click", async () => {
     try {
-      const input = current === "export" ? await exportInput() : await prepareStage(current);
-      $("pipeline-input").value = json(input);
+      // Respect the visible editor: manual corrections must not be overwritten
+      // by prepareStage when the user presses Run.
+      const input = current === "export" ? await exportInput() : parseEditor("pipeline-input");
       await runStage(current, { input });
     } catch (error) { message("အဆင့် မအောင်မြင်ပါ — " + error.message, true); }
   });
