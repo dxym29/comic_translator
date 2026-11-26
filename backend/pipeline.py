@@ -325,7 +325,7 @@ def run_pipeline_stage(project_id: str, stage: str, payload: StageInput, chapter
                     fallback = str((latest.get("remove") or {}).get("output", {}).get("image_path", "") or
                                    (latest.get("extract") or {}).get("output", {}).get("image_path", ""))
                 if not Path(fallback).expanduser().is_file() and chapter_id:
-                    match = re.match(r"^(.*)::page-(\\d+)$", chapter_id)
+                    match = re.match(r"^(.*)::page-(\d+)$", chapter_id)
                     if match:
                         base_id, page_number = match.group(1), int(match.group(2))
                         imported = next((item for item in _latest(project_id, base_id)
