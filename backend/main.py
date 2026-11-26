@@ -20,9 +20,17 @@ from .storage import initialize_database, get_data_dir
 from .pipeline import router as pipeline_router
 
 
+_QT_TEXT_APP = None
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    global _QT_TEXT_APP
     initialize_database()
+    # Qt's text engine must be initialized on the API main thread before
+    # synchronous pipeline handlers run in worker threads.
+    from .typesetting import initialize_text_renderer
+    _QT_TEXT_APP = initialize_text_renderer()
     yield
 
 
