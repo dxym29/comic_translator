@@ -76,3 +76,54 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 .workspace-heading-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 @media(max-width:640px){.workspace-heading-actions{width:100%}.workspace-heading-actions>*{flex:1}}
+
+
+/* Page-by-page workspace and Burmese live progress */
+.page-navigation{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;margin:14px 0;padding:12px;border:1px solid #343943;border-radius:10px;background:#14171d}
+.page-navigation button{margin:0;white-space:nowrap}
+.page-counter{text-align:center;min-width:0;display:grid;gap:4px}
+.page-counter strong{font-size:15px;color:#f0d4a1}
+.page-counter small{font-size:10px;color:#9298a5;overflow-wrap:anywhere}
+.import-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0;padding:12px}
+.import-actions .file-picker{display:flex;align-items:center;gap:8px;min-height:40px}
+.import-actions .file-picker input{max-width:160px;margin:0}
+.process-panel{margin:14px 0;padding:15px 16px;border:1px solid #464037;border-radius:11px;background:linear-gradient(135deg,#25231f,#171a20)}
+.process-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.process-heading>div{display:grid;gap:6px;min-width:0}
+.process-heading strong{font-size:12px;line-height:1.6}
+.process-heading #process-percent{font-size:18px;color:#e3c18a;white-space:nowrap}
+.progress-track{height:8px;margin:12px 0 8px;overflow:hidden;border-radius:20px;background:#343943}
+.progress-fill{height:100%;width:0;border-radius:20px;background:linear-gradient(90deg,#b68a4c,#e5c58f);transition:width .25s ease}
+.process-meta{display:flex;justify-content:space-between;gap:10px;color:#969daa;font-size:10px;flex-wrap:wrap}
+.process-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.process-controls button{margin:0}
+.stage-workspace{display:grid;grid-template-columns:minmax(190px,250px) minmax(0,1fr);gap:14px;margin-top:14px}
+.stage-sidebar,.stage-main{min-width:0;border:1px solid #303540;background:#14171d;border-radius:10px;padding:13px}
+.stage-sidebar h3{font-size:12px;margin:2px 0 10px;color:#c6a36a}
+.stage-sidebar .pipeline-stage-list{display:grid;grid-template-columns:1fr;gap:7px;margin:0}
+.stage-sidebar .pipeline-stage{min-height:53px;grid-template-columns:25px minmax(0,1fr);padding:9px}
+.stage-sidebar .pipeline-stage-title{font-size:11px}
+.stage-sidebar .pipeline-stage-status{font-size:10px}
+.pipeline-manual-actions{display:grid;gap:7px;margin-top:12px}
+.pipeline-manual-actions button{margin:0;width:100%;font-size:11px}
+.pipeline-image-previews{margin:0 0 12px}
+.pipeline-image-previews>div{min-height:220px;display:flex;flex-direction:column}
+.pipeline-image-previews img{width:100%;max-height:560px;object-fit:contain;flex:1}
+.preview-empty{margin:auto;color:#777f8d;font-size:11px;text-align:center;padding:35px 10px}
+.stage-main>.ocr-message{margin:12px 0}
+@media(max-width:900px){
+ .stage-workspace{grid-template-columns:1fr}
+ .stage-sidebar .pipeline-stage-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stage-sidebar .pipeline-manual-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:640px){
+ .page-navigation{grid-template-columns:1fr 1fr}
+ .page-counter{grid-column:1/-1;grid-row:1}
+ .page-navigation button{font-size:10px;padding:10px 7px}
+ .import-actions{display:grid;grid-template-columns:1fr}
+ .import-actions .file-picker{width:100%;justify-content:space-between}
+ .import-actions .file-picker input{max-width:55%}
+ .stage-sidebar .pipeline-stage-list{grid-template-columns:1fr 1fr}
+ .stage-sidebar .pipeline-manual-actions{grid-template-columns:1fr}
+ .process-meta{display:grid}
+}
