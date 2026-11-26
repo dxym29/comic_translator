@@ -85,20 +85,44 @@
     if (!value || typeof value !== "object") return "";
     return value.image_path || value.cleaned_image_path || value.pages?.[0]?.image_path || "";
   }
-  function setPreview(imageId, emptyId, path, emptyText) {
+  async function setPreview(imageId, emptyId, path, emptyText) {
     const image = $(imageId);
     const empty = $(emptyId);
+    const requestId = String(Number(image.dataset.previewRequest || 0) + 1);
+    image.dataset.previewRequest = requestId;
     if (!path || !projectId()) {
       image.hidden = true;
       image.removeAttribute("src");
+      if (image.dataset.previewObjectUrl) URL.revokeObjectURL(image.dataset.previewObjectUrl);
+      image.dataset.previewObjectUrl = "";
       empty.hidden = false;
       empty.textContent = emptyText;
       return;
     }
-    image.src = api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
-      "/image?path=" + encodeURIComponent(path) + "&v=" + Date.now();
-    image.hidden = false;
-    empty.hidden = true;
+    empty.hidden = false;
+    empty.textContent = "ပုံ Preview ကို ဖွင့်နေသည်…";
+    try {
+      const url = api + "/api/v1/projects/" + encodeURIComponent(projectId()) +
+        "/image?path=" + encodeURIComponent(path) + "&v=" + Date.now();
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail.detail || ("HTTP " + response.status));
+      }
+      const blob = await response.blob();
+      if (image.dataset.previewRequest !== requestId) return;
+      const objectUrl = URL.createObjectURL(blob);
+      if (image.dataset.previewObjectUrl) URL.revokeObjectURL(image.dataset.previewObjectUrl);
+      image.dataset.previewObjectUrl = objectUrl;
+      image.src = objectUrl;
+      image.hidden = false;
+      empty.hidden = true;
+    } catch (error) {
+      if (image.dataset.previewRequest !== requestId) return;
+      image.hidden = true;
+      empty.hidden = false;
+      empty.textContent = "Preview မဖွင့်နိုင်ပါ — " + error.message;
+    }
   }
   function updatePreviews() {
     let input = {}, output = {};
