@@ -76,6 +76,7 @@
       button.querySelector(".pipeline-stage-title").textContent = labels[index];
       button.querySelector(".pipeline-stage-status").textContent = statusNames[status] || status;
       button.dataset.status = status;
+      button.disabled = running;
       button.addEventListener("click", () => selectStage(stage));
       list.append(button);
     });
