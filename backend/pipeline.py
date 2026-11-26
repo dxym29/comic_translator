@@ -8,7 +8,6 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
 
 import requests
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -17,7 +16,7 @@ from pydantic import BaseModel, Field
 from .storage import connect, get_data_dir
 
 router = APIRouter(prefix="/api/v1", tags=["pipeline"])
-STAGES = ["fetch", "extract", "remove", "translate", "typeset", "export"]
+STAGES = ["import", "extract", "remove", "translate", "typeset", "export"]
 
 
 class StageInput(BaseModel):
@@ -140,42 +139,8 @@ def _gemini_translate(data: dict, project: dict) -> dict:
 
 
 def _run_stage(stage: str, data: dict, project: dict) -> dict:
-    if stage == "fetch":
-        url = str(data.get("url", "")).strip()
-        if not url.startswith(("http://", "https://")):
-            raise ValueError("fetch stage requires an http(s) chapter URL")
-        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0 ComicTranslator/0.1"},
-                                timeout=30)
-        response.raise_for_status()
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(response.text, "html.parser")
-        base = url
-        candidates = []
-        for tag in soup.select("img[src], img[data-src], source[srcset]"):
-            src = tag.get("src") or tag.get("data-src") or tag.get("srcset", "").split(" ")[0]
-            absolute = urljoin(base, src)
-            if urlparse(absolute).scheme in ("http", "https") and absolute not in candidates:
-                candidates.append(absolute)
-        if not candidates:
-            raise ValueError("No image URLs found. This website may require a site-specific adapter or login.")
-        folder = get_data_dir() / "projects" / project["id"] / "source"
-        folder.mkdir(parents=True, exist_ok=True)
-        saved = []
-        for index, image_url in enumerate(candidates, 1):
-            img = requests.get(image_url, headers={"User-Agent": "Mozilla/5.0", "Referer": url}, timeout=40)
-            img.raise_for_status()
-            if not img.headers.get("content-type", "").startswith("image/"):
-                continue
-            suffix = Path(urlparse(image_url).path).suffix.lower()
-            if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
-                suffix = ".jpg"
-            path = folder / f"page-{index:04d}{suffix}"
-            path.write_bytes(img.content)
-            saved.append({"index": index, "url": image_url, "image_path": str(path)})
-        if not saved:
-            raise ValueError("The page contained image tags but no downloadable image files.")
-        return {"chapter_url": url, "pages": saved, "count": len(saved),
-                "note": "Generic image extraction only; sites with scripts, protected media or login need a dedicated adapter."}
+    if stage == "import":
+        raise ValueError("Import files using the Import button; website fetching is disabled.")
     if stage == "extract":
         return _ocr_extract(data, project)
     if stage == "remove":
@@ -206,11 +171,16 @@ def _run_stage(stage: str, data: dict, project: dict) -> dict:
         )
     if stage == "export":
         from .exporting import export_chapter
+        output_format = str(data.get("format", "zip")).lower()
+        if output_format not in {"epub", "zip", "cbz"}:
+            raise ValueError("Export format must be EPUB, ZIP or CBZ.")
+        extension = ".epub" if output_format == "epub" else (".cbz" if output_format == "cbz" else ".zip")
         output_path = str(data.get("output_path") or (
             get_data_dir() / "projects" / project["id"] / "exports" /
-            ("chapter-" + re.sub(r"[^0-9A-Za-z_-]", "_", str(data.get("chapter_number", "1"))) + ".cbz")
+            ("chapter-" + re.sub(r"[^0-9A-Za-z_-]", "_", str(data.get("chapter_number", "1"))) + extension)
         ))
-        return export_chapter(data.get("pages", []), output_path, str(data.get("title", "Comic Chapter")))
+        return export_chapter(data.get("pages", []), output_path,
+                              str(data.get("title", "Comic Chapter")), output_format)
     raise ValueError("Unknown pipeline stage")
 
 
@@ -228,7 +198,7 @@ async def import_epub(project_id: str, file: UploadFile = File(...), chapter_id:
         from .epub_import import extract_epub
         output = extract_epub(raw, Path(project["storage_path"]), filename)
         saved = _save(
-            project_id, chapter_id, "fetch", "completed",
+            project_id, chapter_id, "import", "completed",
             {"source_type": "epub", "filename": Path(filename).name},
             output, False
         )
@@ -239,6 +209,61 @@ async def import_epub(project_id: str, file: UploadFile = File(...), chapter_id:
         raise HTTPException(500, detail=f"EPUB import failed: {exc}") from exc
     finally:
         await file.close()
+
+
+@router.post("/projects/{project_id}/import-zip")
+async def import_zip(project_id: str, file: UploadFile = File(...), chapter_id: str | None = None):
+    _ensure_table()
+    project = _project(project_id)
+    filename = file.filename or "comic.zip"
+    if Path(filename).suffix.lower() != ".zip":
+        raise HTTPException(415, "Please choose a .zip file.")
+    raw = await file.read(500 * 1024 * 1024 + 1)
+    try:
+        if len(raw) > 500 * 1024 * 1024:
+            raise ValueError("ZIP file is larger than the 500 MB upload limit.")
+        from .file_import import extract_zip
+        output = extract_zip(raw, Path(project["storage_path"]), filename)
+        saved = _save(project_id, chapter_id, "import", "completed",
+                      {"source_type": "zip", "filename": Path(filename).name}, output)
+        return {"run": saved, "import": output}
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, detail=f"ZIP import failed: {exc}") from exc
+    finally:
+        await file.close()
+
+
+@router.post("/projects/{project_id}/import-images")
+async def import_manual_images(
+    project_id: str,
+    files: list[UploadFile] = File(...),
+    chapter_id: str | None = None,
+):
+    _ensure_table()
+    project = _project(project_id)
+    try:
+        entries = []
+        total = 0
+        for upload in files:
+            raw = await upload.read(100 * 1024 * 1024 + 1)
+            total += len(raw)
+            if total > 500 * 1024 * 1024:
+                raise ValueError("Selected images exceed the 500 MB total upload limit.")
+            entries.append((upload.filename or "page.png", raw))
+        from .file_import import import_images
+        output = import_images(entries, Path(project["storage_path"]))
+        saved = _save(project_id, chapter_id, "import", "completed",
+                      {"source_type": "images", "file_count": len(entries)}, output)
+        return {"run": saved, "import": output}
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, detail=f"Image import failed: {exc}") from exc
+    finally:
+        for upload in files:
+            await upload.close()
 
 
 @router.get("/projects/{project_id}/pipeline")
