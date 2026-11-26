@@ -212,6 +212,8 @@
       message("လုပ်ဆောင်နေသည် — " + stageLabel + "…");
       progress(options.done || 0, options.total || 1, "လုပ်ဆောင်နေသည် — " + stageLabel + "…", stageLabel, pageIndex + 1);
     }
+    $("pipeline-input").value = json(input);
+    updatePreviews();
     const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
       "/pipeline/" + stage + "/run?chapter_id=" + encodeURIComponent(chapterId), {
         method: "POST", body: JSON.stringify({ input })
