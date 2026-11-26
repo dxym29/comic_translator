@@ -35,11 +35,11 @@ def _save_pages(entries: list[tuple[str, bytes]], project_dir: Path, source_type
         raise ValueError("No supported comic images were found.")
     if len(entries) > MAX_PAGES:
         raise ValueError(f"Import contains more than {MAX_PAGES} images.")
+    validated = [(name, raw, _validate_image(raw, name)) for name, raw in entries]
     folder = project_dir / "source" / f"{source_type}-imports" / uuid4().hex[:10]
     folder.mkdir(parents=True, exist_ok=False)
     pages = []
-    for index, (name, raw) in enumerate(entries, 1):
-        suffix = _validate_image(raw, name)
+    for index, (name, raw, suffix) in enumerate(validated, 1):
         destination = folder / f"page-{index:04d}{suffix}"
         destination.write_bytes(raw)
         pages.append({"index": index, "source_member": name, "image_path": str(destination)})
