@@ -163,7 +163,10 @@
   }
   function showCurrent() {
     const item = history[current] || {};
-    if (current !== "export") $("pipeline-input").value = json(item.input || defaultInput(current));
+    if (current !== "export") {
+      const reusable = item.status && ["completed", "reviewed"].includes(item.status);
+      $("pipeline-input").value = json(reusable ? (item.input || defaultInput(current)) : defaultInput(current));
+    }
     $("pipeline-output").value = json(item.output || {});
     const model = $("inpainting-model");
     if (model) {
