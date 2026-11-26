@@ -158,7 +158,7 @@
   }
   function showCurrent() {
     const item = history[current] || {};
-    $("pipeline-input").value = json(item.input || defaultInput(current));
+    if (current !== "export") $("pipeline-input").value = json(item.input || defaultInput(current));
     $("pipeline-output").value = json(item.output || {});
     const model = $("inpainting-model");
     if (model) {
@@ -217,6 +217,7 @@
         method: "POST", body: JSON.stringify({ input })
       });
     if (stage !== "export") history[stage] = result.run;
+    $("pipeline-input").value = json(input);
     $("pipeline-output").value = json(result.run.output);
     if (stage === "export") showExportLink(result.run.output);
     updatePreviews();
@@ -226,8 +227,9 @@
   }
   async function saveOutput() {
     const output = parseEditor("pipeline-output");
+    const editChapter = current === "export" ? chapter() : pageChapter(pageIndex);
     const result = await request("/api/v1/projects/" + encodeURIComponent(projectId()) +
-      "/pipeline/" + current + "/output?chapter_id=" + encodeURIComponent(pageChapter(pageIndex)), {
+      "/pipeline/" + current + "/output?chapter_id=" + encodeURIComponent(editChapter), {
         method: "PUT", body: JSON.stringify({ output })
       });
     history[current] = result.run;
@@ -262,7 +264,7 @@
           const stageLabel = labels[names.indexOf(stage)];
           showCurrent();
           progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " လုပ်နေသည်…", stageLabel, p + 1);
-          const input = await prepareStage(stage);
+          const input = defaultInput(stage);
           const output = await runStage(stage, { input, silent: true, done, total });
           done++;
           progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " ပြီးပါပြီ။", stageLabel, p + 1);
@@ -363,7 +365,6 @@
     paused = false;
     message("လက်ရှိလုပ်ဆောင်နေတဲ့ အဆင့်ပြီးတာနဲ့ ရပ်ပါမယ်။");
   });
-  $("pipeline-refresh").addEventListener("click", () => reload().catch(error => message(error.message, true)));
   $("inpainting-model").addEventListener("change", () => {
     if (current !== "remove") return;
     try {
