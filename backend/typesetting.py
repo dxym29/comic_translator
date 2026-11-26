@@ -80,10 +80,10 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
     flags = (
-        Qt.AlignmentFlag.AlignHCenter
-        | Qt.AlignmentFlag.AlignVCenter
-        | Qt.TextFlag.TextWordWrap
-        | Qt.TextFlag.TextWrapAnywhere
+        int(Qt.AlignmentFlag.AlignHCenter)
+        | int(Qt.AlignmentFlag.AlignVCenter)
+        | int(Qt.TextFlag.TextWordWrap)
+        | int(Qt.TextFlag.TextWrapAnywhere)
     )
     rendered = 0
 
