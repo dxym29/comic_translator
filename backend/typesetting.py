@@ -11,22 +11,48 @@ FONT_FILES = {
 }
 
 
-def _font_path(name: str) -> str:
+def _font_path(name: str) -> str | None:
+    """Find a font file when needed; installed Windows fonts may have variable filenames."""
     candidates = FONT_FILES.get(name, FONT_FILES["Noto Sans Myanmar"])
     roots = [
         Path("C:/Windows/Fonts"),
         Path.home() / "AppData/Local/Microsoft/Windows/Fonts",
-        Path("/usr/share/fonts/truetype"),
+        Path("/usr/share/fonts"),
         Path("/usr/local/share/fonts"),
     ]
     for root in roots:
+        if not root.exists():
+            continue
         for candidate in candidates:
-            found = list(root.rglob(candidate)) if root.exists() else []
+            found = next((p for p in root.rglob("*") if p.is_file() and p.name.casefold() == candidate.casefold()), None)
             if found:
-                return str(found[0])
-    raise RuntimeError(
-        f"{name} font was not found. Install the font in Windows, then restart Comic Translator."
-    )
+                return str(found)
+        if name.casefold() == "noto sans myanmar":
+            found = next((p for p in root.rglob("*") if p.is_file() and
+                          p.suffix.casefold() in {".ttf", ".otf", ".ttc"} and
+                          "noto" in p.name.casefold() and "myanmar" in p.name.casefold()), None)
+            if found:
+                return str(found)
+    return None
+
+
+def _installed_family(name: str, database) -> str | None:
+    """Match installed family names independently of the font file's filename."""
+    wanted = " ".join(name.casefold().replace("-", " ").split())
+    for family in database.families():
+        normalized = " ".join(family.casefold().replace("-", " ").split())
+        if normalized == wanted:
+            return family
+    aliases = {
+        "noto sans myanmar": ("noto sans myanmar", "noto sans myanmar ui"),
+        "pyidaungsu": ("pyidaungsu",),
+        "padauk": ("padauk",),
+    }
+    for family in database.families():
+        normalized = " ".join(family.casefold().replace("-", " ").split())
+        if any(alias in normalized for alias in aliases.get(wanted, (wanted,))):
+            return family
+    return None
 
 
 def initialize_text_renderer():
@@ -62,13 +88,28 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
         ) from exc
 
     initialize_text_renderer()
+    # First use Windows/Qt's installed system font database. This handles
+    # per-user installs and variable-font filenames that do not match a
+    # hard-coded .ttf filename.
+    installed = _installed_family(font_family, QFontDatabase)
     font_file = _font_path(font_family)
-    font_id = QFontDatabase.addApplicationFont(font_file)
-    if font_id < 0:
-        raise RuntimeError(f"Could not load font file: {font_file}")
-    families = QFontDatabase.applicationFontFamilies(font_id)
-    if not families:
-        raise RuntimeError(f"Could not read the font family from: {font_file}")
+    if installed:
+        family_name = installed
+        font_source = "Windows installed font"
+    elif font_file:
+        font_id = QFontDatabase.addApplicationFont(font_file)
+        if font_id < 0:
+            raise RuntimeError(f"Could not load font file: {font_file}")
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        if not families:
+            raise RuntimeError(f"Could not read the font family from: {font_file}")
+        family_name = families[0]
+        font_source = font_file
+    else:
+        raise RuntimeError(
+            f"{font_family} font was not found in Qt's installed font list or Windows font folders. "
+            "Check that Windows Settings > Personalization > Fonts shows this font, then restart Comic Translator."
+        )
 
     with Image.open(source) as opened:
         rgb = opened.convert("RGB")
@@ -103,7 +144,7 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
         rect = QRectF(x + inset, y + inset, max(1, w - inset * 2), max(1, h - inset * 2))
         chosen = None
         for size in range(max(8, int(font_size)), 7, -1):
-            font = QFont(families[0])
+            font = QFont(family_name)
             font.setPixelSize(size)
             metrics = QFontMetricsF(font)
             bounds = metrics.boundingRect(rect, int(flags), text)
@@ -111,7 +152,7 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
                 chosen = font
                 break
         if chosen is None:
-            chosen = QFont(families[0])
+            chosen = QFont(family_name)
             chosen.setPixelSize(8)
 
         painter.setFont(chosen)
@@ -133,8 +174,8 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     return {
         "image_path": str(target),
         "rendered_regions": rendered,
-        "font_family": families[0],
-        "font_path": font_file,
+        "font_family": family_name,
+        "font_path": font_source,
         "raqm_available": False,
         "text_layout": "Qt HarfBuzz",
     }
