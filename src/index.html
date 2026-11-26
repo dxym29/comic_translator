@@ -36,7 +36,7 @@
         <div id="project-list" class="project-list"><div class="empty-state">Loading projects…</div></div>
       </section>
       <section id="project-workspace" class="project-workspace" hidden>
-        <div class="section-heading"><div><span class="eyebrow">QUICK IMAGE REVIEW</span><h2 id="workspace-title">Project image preview</h2></div><button id="close-workspace" class="secondary-button">Back to projects</button></div>
+        <div class="section-heading"><div><span class="eyebrow">QUICK IMAGE REVIEW</span><h2 id="workspace-title">Project image preview</h2></div></div>
         <div class="ocr-toolbar">
           <label class="file-picker">Choose comic image<input id="comic-image" type="file" accept="image/*"></label>
           <span class="section-note">Text detection: PP-OCRv6 · ONNX Runtime CPU</span>
@@ -51,7 +51,7 @@
         </div>
       </section>
       <section id="pipeline-workbench" class="pipeline-workbench" hidden>
-        <div class="section-heading"><div><span class="eyebrow">END-TO-END CHAPTER PIPELINE</span><h2>Translation workflow</h2></div><label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label></div>
+        <div class="section-heading"><div><span class="eyebrow">END-TO-END CHAPTER PIPELINE</span><h2>Translation workflow</h2></div><div class="workspace-heading-actions"><label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label><button id="close-workspace" class="secondary-button">Back to projects</button></div></div>
         <div class="pipeline-stage-list" id="pipeline-stage-list"></div>
         <div class="pipeline-actions import-actions">
           <label class="file-picker">Import EPUB<input id="epub-import-file" type="file" accept=".epub,application/epub+zip"></label>
