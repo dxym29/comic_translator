@@ -4,12 +4,17 @@ from pathlib import Path, PurePosixPath
 from uuid import uuid4
 from io import BytesIO
 import zipfile
+import re
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 MAX_ARCHIVE_BYTES = 500 * 1024 * 1024
 MAX_EXPANDED_BYTES = 1024 * 1024 * 1024
 MAX_IMAGE_BYTES = 100 * 1024 * 1024
 MAX_PAGES = 2000
+
+
+def _natural_key(value: str):
+    return [int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\\d+)", value)]
 
 
 def _validate_image(raw: bytes, name: str) -> str:
@@ -69,7 +74,7 @@ def extract_zip(data: bytes, project_dir: Path, filename: str) -> dict:
                 raise ValueError("ZIP expands beyond the 1 GB safety limit.")
             if path.suffix.lower() in IMAGE_EXTENSIONS:
                 infos.append(info)
-        infos.sort(key=lambda item: item.filename.casefold())
+        infos.sort(key=lambda item: _natural_key(item.filename))
         if len(infos) > MAX_PAGES:
             raise ValueError(f"ZIP contains more than {MAX_PAGES} comic images.")
         entries = [(info.filename, archive.read(info)) for info in infos]
@@ -82,5 +87,5 @@ def import_images(files: list[tuple[str, bytes]], project_dir: Path, filename: s
         if Path(name).suffix.lower() not in IMAGE_EXTENSIONS:
             continue
         entries.append((Path(name).name, raw))
-    entries.sort(key=lambda item: item[0].casefold())
+    entries.sort(key=lambda item: _natural_key(item[0]))
     return _save_pages(entries, project_dir, "images", filename)
