@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont, features
 
 
 FONT_FILES = {
@@ -68,11 +67,18 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     source = Path(image_path)
     if not source.is_file():
         raise ValueError("typeset stage requires a valid cleaned image_path")
-    # Prefer RAQM for correct Myanmar shaping. Some Windows/Python builds
-    # ship Pillow without libraqm; allow a BASIC fallback so the pipeline can
-    # complete, and expose the limitation in the stage result.
+    # Ensure FriBiDi is available before Pillow probes its optional RAQM engine.
+    from .raqm import ensure_raqm
+    ensure_raqm()
+    from PIL import Image, ImageDraw, ImageFont, features
+
     raqm_available = bool(features.check("raqm"))
-    layout_engine = ImageFont.Layout.RAQM if raqm_available else ImageFont.Layout.BASIC
+    if not raqm_available:
+        raise RuntimeError(
+            "Myanmar typesetting requires Pillow RAQM. The FriBiDi runtime could not be loaded. "
+            "Run: python -m backend.install_raqm"
+        )
+    layout_engine = ImageFont.Layout.RAQM
     font_path = _font_path(font_family)
     image = Image.open(source).convert("RGB")
     draw = ImageDraw.Draw(image)
@@ -115,4 +121,5 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     image.save(target, format="PNG", optimize=True)
     return {"image_path": str(target), "rendered_regions": rendered,
             "font_family": font_family, "font_path": font_path,
-            "raqm_available": raqm_available,\n            "warning": "" if raqm_available else "Pillow has no libraqm; basic text layout was used and Myanmar shaping may be imperfect. Install a Pillow build with libraqm for best results."}
+            "raqm_available": raqm_available,
+            "text_layout": "RAQM"}
