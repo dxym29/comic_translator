@@ -45,6 +45,8 @@
       button.querySelector(".pipeline-stage-title").textContent = labels[i];
       button.querySelector(".pipeline-stage-status").textContent = status;
       button.dataset.status = status;
+      button.disabled = stage === "import";
+      button.title = stage === "import" ? "Use the file import buttons above." : labels[i];
       button.addEventListener("click", () => selectStage(stage));
       list.append(button);
     }
