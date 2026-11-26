@@ -31,7 +31,7 @@ EPUB output preserves the EPUB file format and comic page sequence, but it is re
 - OCR: PaddleOCR 3.7.0 + ONNX Runtime CPU. English is the default; PP-OCRv6 is selected for English/Japanese/Chinese and PP-OCRv5 for Korean/Thai.
 - Text removal: selectable LaMa Manga and AOT-GAN CPU models.
 - Translation: Gemini 3.1 Flash-Lite primary, Gemini 3.5 Flash-Lite quota fallback.
-- Typesetting: Pillow with the selected installed font.
+- Typesetting: Pillow RAQM + FriBiDi with the selected installed font.
 - Storage: local SQLite and project folders under `%LOCALAPPDATA%\\ComicTranslator`.
 
 ## Requirements
@@ -49,6 +49,7 @@ python -m venv .venv
 # Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
+python -m backend.install_raqm
 pip install -r backend/requirements-ocr-cpu.txt
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -r backend/requirements-lama-cpu.txt
@@ -65,7 +66,7 @@ Designed for CPU-first operation on an Intel Core i5-8265U with 16 GB RAM and In
 
 - OCR detects text lines, not guaranteed speech-bubble boundaries. Review and correct regions before removing text.
 - AI inpainting depends on mask quality and surrounding artwork; inspect each result.
-- Myanmar text rendering depends on the selected font and Pillow shaping support.
+- Myanmar text rendering uses Pillow RAQM + FriBiDi; the setup downloads the required FriBiDi DLL automatically on Windows.
 - Website chapter fetching is intentionally disabled. Import files from your computer instead.
 
 ## Project separation
