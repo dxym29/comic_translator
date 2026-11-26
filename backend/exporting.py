@@ -5,7 +5,18 @@ from pathlib import Path
 from typing import Any
 
 
-def export_chapter(pages: list[dict], output_path: str, title: str = "Comic Chapter") -> dict[str, Any]:
+def export_chapter(
+    pages: list[dict],
+    output_path: str,
+    title: str = "Comic Chapter",
+    output_format: str | None = None,
+) -> dict[str, Any]:
+    requested = (output_format or Path(output_path).suffix.lstrip(".") or "zip").lower()
+    if requested == "epub":
+        from .epub_export import export_epub
+        return export_epub(pages, output_path, title)
+    if requested not in {"zip", "cbz"}:
+        raise ValueError("Export format must be EPUB, ZIP or CBZ.")
     files = []
     for page in pages:
         candidate = Path(str(page.get("image_path", ""))).expanduser()
@@ -19,5 +30,5 @@ def export_chapter(pages: list[dict], output_path: str, title: str = "Comic Chap
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         for number, path in files:
             archive.write(path, f"{number:04d}{path.suffix.lower() or '.png'}")
-    return {"file_path": str(destination), "format": "CBZ" if destination.suffix.lower() == ".cbz" else "ZIP",
+    return {"file_path": str(destination), "format": "CBZ" if requested == "cbz" else "ZIP",
             "page_count": len(files), "title": title}

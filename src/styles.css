@@ -63,3 +63,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .advanced-editor[open] summary{border-bottom:1px solid #343943}
 .advanced-editor .pipeline-editors{padding:0 12px 12px}
 .project-row-actions .primary-button{margin:0}
+
+
+/* Simple local-import workspace */
+.import-actions{padding:14px;border:1px solid #343943;border-radius:10px;background:#14171d}
+.import-actions .file-picker{min-width:145px;min-height:40px}
+.pipeline-manual-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.file-download{display:inline-flex;margin:10px 0;padding:10px 14px;border:1px solid #47785d;border-radius:8px;background:#1d3027;color:#c5ead3;text-decoration:none;font-size:12px;font-weight:700}
+.file-download:hover{background:#274534}
+.pipeline-workbench .section-heading h2{margin-bottom:0}
+@media(max-width:640px){.import-actions{display:grid;grid-template-columns:1fr}.import-actions .file-picker{width:100%}.pipeline-manual-actions>*{flex:1}}
+
+.workspace-heading-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media(max-width:640px){.workspace-heading-actions{width:100%}.workspace-heading-actions>*{flex:1}}

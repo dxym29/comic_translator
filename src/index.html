@@ -15,20 +15,20 @@
       <div class="sidebar-footer"><span class="status-dot"></span><span id="service-status">Connecting to local engine…</span></div>
     </aside>
     <main class="main-content">
-      <header class="topbar"><div><span class="eyebrow">LOCAL COMIC WORKFLOW</span><h1>Workspace</h1></div><div class="engine-pill">PP-OCRv6 + GEMINI</div></header>
+      <header class="topbar"><div><span class="eyebrow">LOCAL COMIC WORKFLOW</span><h1>Workspace</h1></div><div class="engine-pill">LOCAL OCR + GEMINI</div></header>
       <section class="welcome-panel">
         <div class="welcome-copy">
           <span class="eyebrow">YOUR COMIC TRANSLATION STUDIO</span>
           <h2>Bring your chapters<br>to Myanmar.</h2>
-          <p>Fetch, clean, translate, typeset, and export comic chapters from one local workspace.</p>
+          <p>Import a comic file, translate its pages, and export the finished chapter.</p>
           <button class="primary-button" id="create-project">Create project <span>＋</span></button>
         </div>
         <div class="workflow">
-          <div class="workflow-step"><span>01</span><strong>Fetch</strong><small>Chapter images</small></div>
+          <div class="workflow-step"><span>01</span><strong>Import</strong><small>EPUB, ZIP or images</small></div>
           <div class="workflow-step"><span>02</span><strong>Clean</strong><small>Detect & remove text</small></div>
           <div class="workflow-step"><span>03</span><strong>Translate</strong><small>Gemini translation</small></div>
           <div class="workflow-step"><span>04</span><strong>Typeset</strong><small>Myanmar lettering</small></div>
-          <div class="workflow-step"><span>05</span><strong>Export</strong><small>CBZ / ZIP</small></div>
+          <div class="workflow-step"><span>05</span><strong>Export</strong><small>Original format</small></div>
         </div>
       </section>
       <section class="projects-section">
@@ -36,7 +36,7 @@
         <div id="project-list" class="project-list"><div class="empty-state">Loading projects…</div></div>
       </section>
       <section id="project-workspace" class="project-workspace" hidden>
-        <div class="section-heading"><div><span class="eyebrow">QUICK IMAGE REVIEW</span><h2 id="workspace-title">Project image preview</h2></div><button id="close-workspace" class="secondary-button">Back to projects</button></div>
+        <div class="section-heading"><div><span class="eyebrow">QUICK IMAGE REVIEW</span><h2 id="workspace-title">Project image preview</h2></div></div>
         <div class="ocr-toolbar">
           <label class="file-picker">Choose comic image<input id="comic-image" type="file" accept="image/*"></label>
           <span class="section-note">Text detection: PP-OCRv6 · ONNX Runtime CPU</span>
@@ -51,25 +51,30 @@
         </div>
       </section>
       <section id="pipeline-workbench" class="pipeline-workbench" hidden>
-        <div class="section-heading"><div><span class="eyebrow">END-TO-END CHAPTER PIPELINE</span><h2>Translation workflow</h2></div><label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label></div>
+        <div class="section-heading"><div><span class="eyebrow">END-TO-END CHAPTER PIPELINE</span><h2>Translation workflow</h2></div><div class="workspace-heading-actions"><label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label><button id="close-workspace" class="secondary-button">Back to projects</button></div></div>
         <div class="pipeline-stage-list" id="pipeline-stage-list"></div>
-        <div class="pipeline-actions">
+        <div class="pipeline-actions import-actions">
           <label class="file-picker">Import EPUB<input id="epub-import-file" type="file" accept=".epub,application/epub+zip"></label>
-          <label class="engine-select-label">Inpainting model<select id="inpainting-model"><option value="lama_manga">LaMa Manga · ~196 MB</option><option value="aot_gan">AOT-GAN Manga/Anime · ~22 MB</option></select></label>
-          <button id="pipeline-run" class="primary-button">Run stage</button>
-          <button id="pipeline-save" class="secondary-button">Save manual output</button>
-          <button id="pipeline-next" class="secondary-button">Prepare next stage</button>
-          <button id="pipeline-auto" class="secondary-button">Auto run</button>
+          <label class="file-picker">Import ZIP<input id="zip-import-file" type="file" accept=".zip,application/zip"></label>
+          <label class="file-picker">Add images<input id="images-import-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" multiple></label>
+          <label class="engine-select-label">Text removal<select id="inpainting-model"><option value="lama_manga">LaMa Manga</option><option value="aot_gan">AOT-GAN</option></select></label>
+          <button id="pipeline-auto" class="primary-button">Start translation</button>
           <button id="pipeline-pause" class="secondary-button" disabled>Pause</button>
-          <button id="pipeline-refresh" class="secondary-button">Reload history</button>
         </div>
+        <div class="pipeline-manual-actions">
+          <button id="pipeline-run" class="secondary-button">Run selected step</button>
+          <button id="pipeline-save" class="secondary-button">Save edited result</button>
+          <button id="pipeline-next" class="secondary-button">Next step</button>
+          <button id="pipeline-refresh" class="secondary-button">Refresh</button>
+        </div>
+        <a id="export-download" class="file-download" hidden>Download finished chapter</a>
         <p id="pipeline-message" class="ocr-message">Choose a stage. Review and edit its JSON input/output before continuing.</p>
         <div class="pipeline-image-previews">
           <div><strong>Input image</strong><img id="pipeline-input-image" alt="Pipeline input image" hidden></div>
           <div><strong>Output image</strong><img id="pipeline-output-image" alt="Pipeline output image" hidden></div>
         </div>
         <details class="advanced-editor">
-          <summary>Advanced · Raw stage input / output (JSON)</summary>
+          <summary>Advanced review · Editable stage data</summary>
           <div class="pipeline-editors">
             <label>Stage input (editable JSON)<textarea id="pipeline-input" spellcheck="false">{}</textarea></label>
             <label>Stage output (editable JSON)<textarea id="pipeline-output" spellcheck="false">{}</textarea></label>
@@ -93,7 +98,7 @@
         <label>Source language<select name="source_language"><option>English</option><option>Japanese</option><option>Chinese</option><option>Korean</option><option>Thai</option><option>Other</option></select></label>
         <label>Target language<select name="target_language"><option>Myanmar</option><option>English</option><option>Thai</option></select></label>
       </div>
-      <label>Comic website / URL (optional)<input name="source_url" type="url" placeholder="https://…"></label>
+      
       <label>Text insertion style<select name="typesetting_style"><option value="original_bubble">Original Bubble Style</option><option value="professional">Professional Typesetting</option></select></label>
       <label>Myanmar font<select name="font_family"><option>Noto Sans Myanmar</option><option>Pyidaungsu</option><option>Padauk</option></select></label>
       <p id="form-message" class="form-message"></p>

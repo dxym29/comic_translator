@@ -101,9 +101,9 @@ function openProject(project) {
   window.__comicSelectedProject = project;
   window.__comicSelectedProjectId = project.id;
   document.getElementById("pipeline-workbench").hidden = false;
-  workspaceTitle.textContent = project.name + " · Quick image review";
-  workspace.hidden = false;
-  workspace.scrollIntoView({ behavior: "smooth", block: "start" });
+  workspaceTitle.textContent = project.name;
+  workspace.hidden = true;
+  document.getElementById("pipeline-workbench").scrollIntoView({ behavior: "smooth", block: "start" });
   if (window.comicPipeline) window.comicPipeline.reload().catch(error => console.error(error));
 }
 
@@ -142,7 +142,7 @@ form.addEventListener("submit", async (event) => {
     target_language: data.get("target_language"),
     typesetting_style: data.get("typesetting_style"),
     font_family: data.get("font_family"),
-    source_url: data.get("source_url")
+    source_url: data.get("source_url") || ""
   };
   const submit = form.querySelector('button[type="submit"]');
   submit.disabled = true;

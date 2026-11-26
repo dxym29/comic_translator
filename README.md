@@ -1,37 +1,45 @@
 # Comic Translator
 
-A separate Windows desktop application for translating comic chapters into Myanmar.
+A local-first Windows desktop application for translating comic pages into Myanmar.
 
-## Current implementation
+## Workflow
 
-- Electron desktop shell with a local Python API.
-- Local SQLite database stored under the operating system's application-data directory.
-- Create and list local comic projects.
-- Per-project source/target language, source URL, font and lettering style settings.
-- Project folders for source images, cleaned images, rendered pages and exports.
-- Database tables prepared for chapters, pages, detected text regions and resumable jobs.
-- CPU OCR integration using PaddleOCR PP-OCRv6 multilingual models through ONNX Runtime (English default); PP-OCRv5 is selected for Korean/Thai.
-- OCR preview API returns text-line boxes, recognized text and confidence values.
-- Nearby OCR lines are conservatively grouped into editable text-block suggestions.
-- Users can edit each block's recognized text and X/Y/width/height before preview cleanup.
-- AI inpainting preview supports manga-oriented LaMa and AOT-GAN models on CPU.
-- OCR/image-processing dependencies are optional and are not required for the desktop shell to start.
-- Gemini model settings documented as the planned translation route:
-  - Primary: Gemini 3.1 Flash-Lite
-  - Quota fallback: Gemini 3.5 Flash-Lite
+The application uses local files only. Website fetching has been removed from the normal workflow.
 
-## Not implemented yet
+1. Create or open a project.
+2. Import an **EPUB**, **ZIP**, or one/multiple **JPG, PNG, WEBP, GIF, BMP** images.
+3. Detect text with PaddleOCR through ONNX Runtime CPU.
+4. Review detected text and remove the original lettering with LaMa Manga or AOT-GAN.
+5. Translate with Gemini 3.1 Flash-Lite; Gemini 3.5 Flash-Lite is used only as the quota fallback.
+6. Typeset the Myanmar translation onto the page.
+7. Export the finished chapter.
 
-Website-specific chapter fetching, automatic speech-bubble boundary detection and reliable artwork-aware text removal, Gemini translation, Myanmar text layout/rendering, batch execution and CBZ/ZIP export are not implemented yet. OCR and cleanup are currently exposed as local preview API endpoints, not a finished user-facing workflow.
+The **Start translation** button runs the imported pages through the pipeline. Each stage can still be selected and run separately; the Advanced review section contains editable stage input/output for manual correction.
 
-## Hardware target
+## Import and export behavior
 
-Initial development targets CPU-first operation on an Intel Core i5-8265U with 16GB RAM and Intel UHD 620 integrated graphics. The intended initial image-processing concurrency is one image at a time.
+- **EPUB in → EPUB out.** Page images are extracted in EPUB spine reading order. The output is rebuilt as a valid image-based EPUB containing the translated pages.
+- **ZIP in → ZIP out.** Images are imported in natural filename order (page 1, page 2, page 10) and exported as a ZIP.
+- **Manual images → ZIP out.** You can add one image at a time or select multiple images. Images added one at a time are appended to the current manual-image chapter.
+- ZIP imports are limited to 500 MB compressed / 1 GB expanded. Individual images are limited to 100 MB and chapters to 2,000 pages.
+- Exported files are saved in the project exports folder. A Download link appears after export.
 
-## Development requirements
+EPUB output preserves the EPUB file format and comic page sequence, but it is rebuilt from the translated page images; it does not preserve the original publisher's metadata, navigation, or text layout.
 
-- Node.js 20 or newer
-- Python 3.10 or newer
+## Local processing
+
+- OCR: PaddleOCR 3.7.0 + ONNX Runtime CPU. English is the default; PP-OCRv6 is selected for English/Japanese/Chinese and PP-OCRv5 for Korean/Thai.
+- Text removal: selectable LaMa Manga and AOT-GAN CPU models.
+- Translation: Gemini 3.1 Flash-Lite primary, Gemini 3.5 Flash-Lite quota fallback.
+- Typesetting: Pillow with the selected installed font.
+- Storage: local SQLite and project folders under `%LOCALAPPDATA%\\ComicTranslator`.
+
+## Requirements
+
+- Windows 10/11
+- Node.js 20+
+- Python 3.10+ (Python 3.13 is recommended for the optional OCR dependencies)
+- Gemini API key configured in the local environment as `GEMINI_API_KEY`
 
 Install:
 
@@ -41,112 +49,25 @@ python -m venv .venv
 # Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
-
-# Optional CPU OCR and image cleanup:
 pip install -r backend/requirements-ocr-cpu.txt
-```
-
-PaddleOCR downloads its selected PP-OCR model files on first use. English, Japanese and Chinese use PP-OCRv6; Korean and Thai use PP-OCRv5. Inference runs with ONNX Runtime on CPU, without requiring PaddlePaddle. Python 3.13 is the recommended Windows runtime for the OCR dependencies; Python 3.14 wheel availability varies by dependency. See the [PaddleOCR inference engine guide](https://www.paddleocr.ai/latest/en/version3.x/inference_deployment/local_inference/inference_engine.html).
-
-Run the desktop application:
-
-```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install -r backend/requirements-lama-cpu.txt
 npm start
 ```
 
-Electron starts the local Python API automatically. For backend-only development:
+PaddleOCR downloads its selected model files on first use. Inpainting model weights are downloaded and checksum-verified on first use.
 
-```bash
-python -m backend
-```
+## Hardware target
 
-The API listens only on `127.0.0.1:43128`.
+Designed for CPU-first operation on an Intel Core i5-8265U with 16 GB RAM and Intel UHD 620. Image processing runs one page at a time. Large chapters and local model inference may take time.
 
-Local image preview endpoints:
-- `POST /api/v1/images/ocr-preview` — multipart fields `file` and optional `language` (`English`, `Chinese`, `Japanese`, `Korean`, `Thai`, or matching language code).
-- `POST /api/v1/images/group-regions` — JSON body with a `regions` list; returns suggested text blocks.
-- `POST /api/v1/images/clean-preview` — multipart fields `file`, `regions_json`, and optional `model` (`lama_manga` or `aot_gan`).
+## Important limitations
 
-OCR boxes are text-line detections, not guaranteed speech-bubble boundaries. Always review detections before cleaning an original image. AI inpainting results depend on mask quality and surrounding context; review the output before continuing.
-
-## Local data
-
-On Windows, application data is stored under `%LOCALAPPDATA%\ComicTranslator`. Set `COMIC_TRANSLATOR_DATA_DIR` to override the location.
-
-## Security
-
-- Never commit Gemini API keys, cookies, session tokens, or downloaded comic images.
-- Real API credentials will be configured locally in a later settings step.
-- Fetching adapters must respect website access rules and user permissions.
+- OCR detects text lines, not guaranteed speech-bubble boundaries. Review and correct regions before removing text.
+- AI inpainting depends on mask quality and surrounding artwork; inspect each result.
+- Myanmar text rendering depends on the selected font and Pillow shaping support.
+- Website chapter fetching is intentionally disabled. Import files from your computer instead.
 
 ## Project separation
 
-This repository is independent of `dxym29/t_app`. No changes are made to the Webnovel Translator.
-
-## End-to-end pipeline
-
-The project workspace now exposes six persisted stages: Fetch, PP-OCRv6 text extraction,
-LaMa AI inpainting, Gemini translation, Myanmar typesetting, and CBZ/ZIP export.
-Each stage has editable JSON input/output, a manual-output save action, and an automatic
-one-page-at-a-time chapter runner. Stage results are stored in SQLite so a reviewed result
-can be reused without rerunning earlier stages.
-
-### Install the core desktop backend
-
-```bash
-pip install -r backend/requirements.txt
-```
-
-Install CPU OCR support (PP-OCRv6 + ONNX Runtime):\n\n```bash\npip install -r backend/requirements-ocr-cpu.txt\n```\n\nEnglish is the default OCR language for English-source projects. The first Detect Text / Extract run downloads the selected model.\n\nSet `GEMINI_API_KEY` in the environment before running the translation stage.
-
-### Optional CPU manga inpainting
-
-The Remove stage supports two selectable CPU models:
-
-- **LaMa Manga** — manga/anime-finetuned TorchScript checkpoint (~196 MiB).
-- **AOT-GAN Manga/Anime** — lightweight TorchScript checkpoint (~22 MiB).
-
-Install the PyTorch CPU runtime and image-processing requirements:
-
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip install -r backend/requirements-lama-cpu.txt
-```
-
-The selected model is downloaded automatically on first use, checksum-verified,
-and cached under `%LOCALAPPDATA%\\ComicTranslator\\models\\inpainting`.
-On an i5-8265U CPU, processing can take time; AOT-GAN has a smaller checkpoint,
-while LaMa Manga is the larger manga-finetuned option. The user can switch models
-for each Remove stage and review the resulting image before continuing.
-
-Install the selected Myanmar font in Windows. Pillow's RAQM text layout support is
-used when available; verify Myanmar shaping on the installed Pillow build before
-processing a full chapter.
-
-### EPUB manga import
-
-The project workspace supports importing image-based EPUB manga files through the
-**Import EPUB** control. The importer reads the EPUB package manifest and spine,
-extracts raster page images in reading order, and stores them under the selected
-project's source folder before continuing through the existing pipeline. It accepts
-EPUB files up to 500 MB, limits expanded archive content to 1 GB, and rejects
-unsupported or invalid page images. EPUBs that contain only reflowable text rather
-than page images are not converted into comic pages.
-
-### Current operational notes
-
-- Generic Fetch supports ordinary HTML image tags. JavaScript-rendered, login-gated,
-  encrypted, or protected comic sites require a dedicated site adapter.
-- The automatic runner processes one page at a time and checkpoints each stage.
-  Pause takes effect between stage operations; it does not interrupt a running model call.
-- The stage editor stores JSON. Review OCR coordinates and translations before committing
-  a chapter; manual output can be saved and reused by downstream stages.
-- CPU performance and Myanmar font rendering depend on the local model, installed fonts,
-  and Pillow/RAQM build. No speed guarantee is made for this hardware.
-
-
-### Project management
-
-The local project library now includes a Delete action for each project. Deleting
-a project permanently removes its saved chapter images, cleaned/rendered pages,
-exports, and pipeline history from this computer after confirmation.
+This repository is independent of `dxym29/t_app` and `dxym29/t_app_local_ai`.
