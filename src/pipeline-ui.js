@@ -173,7 +173,7 @@
     return {
       title: importRecord?.output?.title || window.__comicSelectedProject?.name || "Comic Chapter",
       chapter_number: chapter(),
-      format: $("export-format")?.value || (importRecord?.output?.source_type === "epub" ? "epub" : importRecord?.output?.source_type === "cbz" ? "cbz" : "cbz"),
+      format: $("export-format")?.value || "cbz",
       pages: outputs
     };
   }
@@ -345,6 +345,10 @@
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.detail || "Import မအောင်မြင်ပါ။");
       importRecord = result.run;
+      const sourceType = result.import?.source_type;
+      if (sourceType === "epub" || sourceType === "cbz" || sourceType === "zip") {
+        $("export-format").value = sourceType;
+      }
       pages = result.import.pages || [];
       pageIndex = 0;
       history = {};
