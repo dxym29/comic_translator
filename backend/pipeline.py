@@ -543,6 +543,22 @@ def run_pipeline_stage(project_id: str, stage: str, payload: StageInput, chapter
                             fallback = str(imported_pages[page_number - 1].get("image_path", ""))
                 if Path(fallback).expanduser().is_file():
                     stage_input["image_path"] = fallback
+        if stage == "translate" and not stage_input.get("image_path"):
+            latest = {item["stage"]: item for item in _latest(project_id, chapter_id)}
+            # Prefer the cleaned page for visual tone/context; fall back to OCR source.
+            visual_path = str((latest.get("remove") or {}).get("output", {}).get("image_path", "") or
+                              (latest.get("extract") or {}).get("output", {}).get("image_path", ""))
+            if not Path(visual_path).expanduser().is_file() and chapter_id:
+                match = re.match(r"^(.*)::page-(\\d+)$", chapter_id)
+                if match:
+                    base_id, page_number = match.group(1), int(match.group(2))
+                    imported = next((item for item in _latest(project_id, base_id)
+                                     if item["stage"] == "import"), None)
+                    imported_pages = (imported or {}).get("output", {}).get("pages", [])
+                    if 0 < page_number <= len(imported_pages):
+                        visual_path = str(imported_pages[page_number - 1].get("image_path", ""))
+            if Path(visual_path).expanduser().is_file():
+                stage_input["image_path"] = visual_path
         output = _run_stage(stage, stage_input, project)
         return {"run": _save(project_id, chapter_id, stage, "completed", stage_input,
                              output, payload.manual)}
