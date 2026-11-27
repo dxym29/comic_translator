@@ -102,6 +102,136 @@ def _ocr_extract(data: dict, project: dict) -> dict:
         "note": "PP-OCR text-line boxes; review and edit before removing text."
     }
 
+def _ensure_glossary_table() -> None:
+    with connect() as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS project_glossary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            source_name TEXT NOT NULL COLLATE NOCASE,
+            target_name TEXT NOT NULL,
+            entity_type TEXT NOT NULL DEFAULT 'character',
+            aliases_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(project_id, source_name)
+        )""")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_glossary_project ON project_glossary(project_id)")
+
+
+def _load_glossary(project_id: str) -> list[dict]:
+    _ensure_glossary_table()
+    with connect() as db:
+        rows = db.execute(
+            "SELECT source_name,target_name,entity_type,aliases_json FROM project_glossary "
+            "WHERE project_id=? ORDER BY source_name COLLATE NOCASE", (project_id,)
+        ).fetchall()
+    return [{"source": row["source_name"], "target": row["target_name"],
+             "type": row["entity_type"], "aliases": json.loads(row["aliases_json"] or "[]")}
+            for row in rows]
+
+
+def _save_glossary(project_id: str, entries: list[dict]) -> list[dict]:
+    _ensure_glossary_table()
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    with connect() as db:
+        for entry in entries:
+            source_name = str(entry.get("source", "")).strip()
+            target_name = str(entry.get("target", "")).strip()
+            if not source_name or not target_name or len(source_name) > 120 or len(target_name) > 120:
+                continue
+            aliases = entry.get("aliases", [])
+            if not isinstance(aliases, list):
+                aliases = []
+            aliases = [str(x).strip() for x in aliases if str(x).strip()][:12]
+            existing = db.execute(
+                "SELECT target_name,entity_type,aliases_json FROM project_glossary "
+                "WHERE project_id=? AND source_name=?",
+                (project_id, source_name)
+            ).fetchone()
+            # Once a name has been established, later chapters cannot silently rename it.
+            if existing:
+                target_name = existing["target_name"]
+                entity_type = existing["entity_type"]
+                try:
+                    old_aliases = json.loads(existing["aliases_json"] or "[]")
+                except (TypeError, json.JSONDecodeError):
+                    old_aliases = []
+                aliases = list(dict.fromkeys(old_aliases + aliases))
+            else:
+                entity_type = str(entry.get("type", "character"))[:40] or "character"
+            db.execute("""INSERT INTO project_glossary
+                (project_id,source_name,target_name,entity_type,aliases_json,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(project_id,source_name) DO UPDATE SET
+                  aliases_json=excluded.aliases_json, updated_at=excluded.updated_at""",
+                (project_id, source_name, target_name, entity_type,
+                 json.dumps(aliases, ensure_ascii=False), now, now))
+    return _load_glossary(project_id)
+
+
+def _gemini_call(key: str, parts: list[dict], temperature: float = 0.2) -> tuple[dict, str, bool]:
+    models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
+    attempts = []
+    for model in models:
+        response = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+            json={"contents": [{"parts": parts}],
+                  "generationConfig": {"responseMimeType": "application/json", "temperature": temperature}},
+            timeout=120)
+        if response.ok:
+            body = response.json()
+            text_value = body["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(text_value), model, model != models[0]
+        detail = response.text[:1000]
+        attempts.append({"model": model, "status": response.status_code, "detail": detail})
+        quota = response.status_code == 429 or "quota" in detail.lower() or "resource_exhausted" in detail.lower()
+        if model == models[0] and quota:
+            continue
+        raise RuntimeError(f"{model} failed ({response.status_code}); fallback is quota-only. {detail}")
+    raise RuntimeError("Both Gemini models are quota limited: " + json.dumps(attempts))
+
+
+def _image_part(image_path: str) -> list[dict]:
+    path = Path(image_path).expanduser()
+    if not path.is_file():
+        return []
+    try:
+        from PIL import Image
+        from io import BytesIO
+        import base64
+        with Image.open(path) as source:
+            image = source.convert("RGB")
+            image.thumbnail((1600, 1600))
+            buffer = BytesIO()
+            image.save(buffer, format="JPEG", quality=82, optimize=True)
+            raw = buffer.getvalue()
+        return [{"inline_data": {"mime_type": "image/jpeg",
+                                 "data": base64.b64encode(raw).decode("ascii")}}]
+    except Exception:
+        return []
+
+
+def _name_lock_violations(items: list[dict], translations: list[dict], glossary: list[dict]) -> list[dict]:
+    source_by_id = {str(item.get("id", index + 1)): str(item.get("text", ""))
+                    for index, item in enumerate(items)}
+    translated_by_id = {str(item.get("id", "")): str(item.get("text", ""))
+                        for item in translations}
+    violations = []
+    for entry in glossary:
+        source_name = str(entry.get("source", ""))
+        target_name = str(entry.get("target", ""))
+        aliases = [source_name] + list(entry.get("aliases", []))
+        for region_id, source_text in source_by_id.items():
+            if any(alias and re.search(r"(?<!\w)" + re.escape(alias) + r"(?!\w)", source_text, re.I)
+                   for alias in aliases):
+                translated_text = translated_by_id.get(region_id, "")
+                if target_name and target_name not in translated_text:
+                    violations.append({"id": region_id, "source": source_name,
+                                       "required_target": target_name})
+    return violations
+
+
 def _gemini_translate(data: dict, project: dict) -> dict:
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
@@ -111,32 +241,110 @@ def _gemini_translate(data: dict, project: dict) -> dict:
         raise ValueError("translate stage requires a non-empty regions array")
     source = project["source_language"]
     target = project["target_language"]
-    prompt = ("Translate the following comic dialogue from " + source + " to " + target +
-              ". Preserve region IDs and return ONLY JSON {translations:[{id,text}]}. "
-              "Keep character names consistent and concise for speech bubbles.\n" +
-              json.dumps(items, ensure_ascii=False))
-    models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
-    attempts = []
-    for model in models:
-        response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-            json={"contents": [{"parts": [{"text": prompt}]}],
-                  "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2}},
-            timeout=120)
-        if response.ok:
-            body = response.json()
-            text = body["candidates"][0]["content"]["parts"][0]["text"]
-            result = json.loads(text)
-            return {"model": model, "fallback_used": model != models[0],
-                    "translations": result.get("translations", []), "attempts": attempts}
-        detail = response.text[:1000]
-        attempts.append({"model": model, "status": response.status_code, "detail": detail})
-        quota = response.status_code == 429 or "quota" in detail.lower() or "resource_exhausted" in detail.lower()
-        if model == models[0] and quota:
-            continue
-        raise RuntimeError(f"{model} failed ({response.status_code}); fallback is quota-only. {detail}")
-    raise RuntimeError("Both Gemini models are quota limited: " + json.dumps(attempts))
+    project_id = project["id"]
+    image_path = str(data.get("image_path") or "")
+    image_parts = _image_part(image_path)
+    existing_glossary = _load_glossary(project_id)
+
+    # Build a chapter glossary with Gemini using both dialogue context and the page art.
+    glossary_prompt = (
+        "You are a comic localization terminology editor. Read the source dialogue and the attached comic page. "
+        "Identify proper names and recurring named entities only: people, places, clans, organizations, titles "
+        "when used as names, and named techniques/items. Do not add ordinary nouns or pronouns. "
+        "For each entity return source (exact source spelling), target (natural consistent Myanmar-script rendering), "
+        "type, and aliases (source spelling variants). If an existing glossary entry matches, preserve its target "
+        "exactly. Do not create a second entry for the same entity. Return ONLY JSON: "
+        '{"entries":[{"source":"...","target":"...","type":"character|place|group|title|other","aliases":[]}]}.\n'
+        "Existing project glossary:\n" + json.dumps(existing_glossary, ensure_ascii=False) +
+        "\nChapter dialogue:\n" + json.dumps(items, ensure_ascii=False)
+    )
+    glossary_result, glossary_model, glossary_fallback = _gemini_call(
+        key, [{"text": glossary_prompt}] + image_parts, 0.1)
+    discovered = glossary_result.get("entries", [])
+    if not isinstance(discovered, list):
+        discovered = []
+    glossary = _save_glossary(project_id, discovered)
+    glossary_text = json.dumps(glossary, ensure_ascii=False)
+
+    # First pass: name-locked natural translation with visual tone selection.
+    translate_prompt = (
+        "Translate this comic dialogue from " + source + " to " + target + ". "
+        "Return ONLY JSON {translations:[{id,text}], tone_summary:string}. Preserve every region id. "
+        "Use the attached comic image to understand facial expressions, body language, scene mood, relationships, "
+        "speaker status and emotional intensity. Choose natural Myanmar dialogue tone for each line: intimate, "
+        "respectful, playful, angry, fearful, teasing, formal, humble or commanding as the scene requires. "
+        "Do not apply one tone to every speaker. Keep speech concise and natural for comic bubbles. "
+        "NAME LOCK IS MANDATORY: every glossary source name must use its exact target spelling; never transliterate "
+        "or vary a locked name. Read the glossary carefully before translating. "
+        "For Myanmar prose, vary sentence endings naturally. Do not end every prose sentence with 'သည်'; use "
+        "'၏' regularly where grammatically and stylistically natural, and also use other natural endings as context "
+        "requires. Never produce the awkward ending 'မည်၏'. Avoid repetitive mechanical wording. "
+        "Do not explain, add notes, or include source-language text unless it is a proper name required by glossary.\n"
+        "PROJECT GLOSSARY:\n" + glossary_text +
+        "\nSOURCE REGIONS:\n" + json.dumps(items, ensure_ascii=False)
+    )
+    translated_result, model, fallback_used = _gemini_call(
+        key, [{"text": translate_prompt}] + image_parts, 0.25)
+    translations = translated_result.get("translations", [])
+    if not isinstance(translations, list):
+        translations = []
+    violations = _name_lock_violations(items, translations, glossary)
+    expected_ids = {str(item.get("id", index + 1)) for index, item in enumerate(items)}
+    actual_ids = {str(item.get("id", "")) for item in translations}
+    if expected_ids != actual_ids:
+        violations.append({"reason": "missing_or_extra_region_ids",
+                           "missing": sorted(expected_ids - actual_ids),
+                           "extra": sorted(actual_ids - expected_ids)})
+
+    neutral_used = False
+    if violations:
+        neutral_used = True
+        neutral_prompt = (
+            "NEUTRAL TRANSLATE RETRY. The previous translation failed name-lock validation. "
+            "Translate the source regions again from " + source + " to " + target + ". "
+            "This is a strict correction pass, not a creative rewrite. Return ONLY JSON "
+            "{translations:[{id,text}],tone_summary:string}. Preserve all ids exactly. "
+            "You MUST read and apply every glossary mapping exactly. Do not invent, alter, shorten, "
+            "or re-transliterate any locked name. Copy the exact Myanmar target spelling wherever that "
+            "source name or alias appears. Preserve meaning and use natural scene-appropriate Myanmar dialogue. "
+            "Vary prose endings; do not use 'သည်' mechanically, use '၏' naturally and regularly where suitable, "
+            "and never end with 'မည်၏'. No explanations.\n"
+            "LOCKED PROJECT GLOSSARY:\n" + glossary_text +
+            "\nVALIDATION FAILURES TO CORRECT:\n" + json.dumps(violations, ensure_ascii=False) +
+            "\nSOURCE REGIONS:\n" + json.dumps(items, ensure_ascii=False)
+        )
+        retry_result, retry_model, retry_fallback = _gemini_call(
+            key, [{"text": neutral_prompt}] + image_parts, 0.15)
+        retry_translations = retry_result.get("translations", [])
+        if isinstance(retry_translations, list):
+            translations = retry_translations
+            model = retry_model
+            fallback_used = fallback_used or retry_fallback
+        remaining = _name_lock_violations(items, translations, glossary)
+        retry_ids = {str(item.get("id", "")) for item in translations}
+        if expected_ids != retry_ids:
+            remaining.append({"reason": "missing_or_extra_region_ids",
+                              "missing": sorted(expected_ids - retry_ids),
+                              "extra": sorted(retry_ids - expected_ids)})
+        name_lock_valid = not remaining
+    else:
+        remaining = []
+        name_lock_valid = True
+
+    return {
+        "model": model,
+        "fallback_used": fallback_used,
+        "glossary_model": glossary_model,
+        "glossary_fallback_used": glossary_fallback,
+        "glossary_count": len(glossary),
+        "glossary": glossary,
+        "name_lock_valid": name_lock_valid,
+        "name_lock_retry_used": neutral_used,
+        "name_lock_remaining_issues": remaining,
+        "tone_summary": translated_result.get("tone_summary", ""),
+        "translations": translations,
+        "attempts": [],
+    }
 
 
 def _run_stage(stage: str, data: dict, project: dict) -> dict:
