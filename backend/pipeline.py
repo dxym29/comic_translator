@@ -244,6 +244,8 @@ def _gemini_translate(data: dict, project: dict) -> dict:
     project_id = project["id"]
     image_path = str(data.get("image_path") or "")
     image_parts = _image_part(image_path)
+    if not image_parts:
+        raise ValueError("Gemini visual translation requires the comic page image. Run Extract first and make sure the source/cleaned image is available.")
     existing_glossary = _load_glossary(project_id)
 
     # Build a chapter glossary with Gemini using both dialogue context and the page art.
