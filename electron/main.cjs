@@ -1,14 +1,24 @@
 const { app, BrowserWindow } = require("electron");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { root, resolvePython } = require("../scripts/python-env.cjs");
 
 let mainWindow;
 let backendProcess;
 
 function startBackend() {
-  const python = process.env.COMIC_TRANSLATOR_PYTHON || (process.platform === "win32" ? "python" : "python3");
+  let python;
+  try {
+    python = resolvePython();
+  } catch (error) {
+    console.error(error.message);
+    const { dialog } = require("electron");
+    dialog.showErrorBox("Python environment missing", error.message);
+    app.quit();
+    return;
+  }
   backendProcess = spawn(python, ["-m", "backend"], {
-    cwd: path.join(__dirname, ".."),
+    cwd: root,
     env: { ...process.env, COMIC_TRANSLATOR_HOST: "127.0.0.1", COMIC_TRANSLATOR_PORT: "43128" },
     stdio: "inherit",
     windowsHide: true
