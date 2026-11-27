@@ -173,7 +173,7 @@
     return {
       title: importRecord?.output?.title || window.__comicSelectedProject?.name || "Comic Chapter",
       chapter_number: chapter(),
-      format: importRecord?.output?.source_type === "epub" ? "epub" : "zip",
+      format: $("export-format")?.value || (importRecord?.output?.source_type === "epub" ? "epub" : importRecord?.output?.source_type === "cbz" ? "cbz" : "cbz"),
       pages: outputs
     };
   }
@@ -371,6 +371,7 @@
 
   $("epub-import-file").addEventListener("change", event => importFiles(event.target, "epub"));
   $("zip-import-file").addEventListener("change", event => importFiles(event.target, "zip"));
+  $("export-format").addEventListener("change", () => { if (current === "export") exportInput().then(input => $("pipeline-input").value = json(input)).catch(error => message(error.message, true)); });
   $("images-import-file").addEventListener("change", event => importFiles(event.target, "images"));
   $("page-previous").addEventListener("click", () => changePage(-1).catch(error => message(error.message, true)));
   $("page-next").addEventListener("click", () => changePage(1).catch(error => message(error.message, true)));
