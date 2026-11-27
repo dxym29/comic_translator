@@ -59,6 +59,7 @@ def capabilities():
         "pipeline_stage_history": True,
         "website_fetch": False,
         "zip_import": True,
+        "cbz_import": True,
         "manual_image_import": True,
         "epub_import": True,
         "pp_ocrv6_onnx_cpu": importlib.util.find_spec("paddleocr") is not None and importlib.util.find_spec("onnxruntime") is not None,
@@ -66,6 +67,7 @@ def capabilities():
         "ai_text_removal": importlib.util.find_spec("torch") is not None,
         "typesetting": importlib.util.find_spec("PIL") is not None,
         "export": True,
+        "export_formats": ["cbz", "epub", "pdf", "zip"],
         "ocr_preview": importlib.util.find_spec("paddleocr") is not None and importlib.util.find_spec("onnxruntime") is not None,
         "opencv_preview_cleanup": importlib.util.find_spec("cv2") is not None,
         "message": "LaMa Manga and AOT-GAN CPU inpainting download verified model weights on first use; Myanmar rendering requires a supported installed font."
