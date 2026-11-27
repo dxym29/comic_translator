@@ -127,3 +127,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
  .stage-sidebar .pipeline-manual-actions{grid-template-columns:1fr}
  .process-meta{display:grid}
 }
+
+
+.auto-run-log-panel{margin-top:14px;border:1px solid #343943;border-radius:9px;background:#11141a;overflow:hidden}
+.auto-run-log-heading{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #343943;color:#d8dbe2;font-size:11px}
+.auto-run-log-heading .secondary-button{padding:5px 9px;font-size:10px}
+#auto-run-log{margin:0;padding:11px 13px;max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#aeb7c5;font:10px/1.65 Consolas,monospace}
