@@ -7,7 +7,7 @@ A local-first Windows desktop application for translating comic pages into Myanm
 The application uses local files only. Website fetching has been removed from the normal workflow.
 
 1. Create or open a project.
-2. Import an **EPUB**, **ZIP**, or one/multiple **JPG, PNG, WEBP, GIF, BMP** images.
+2. Import an **EPUB**, **CBZ**, **ZIP**, or one/multiple **JPG, PNG, WEBP, GIF, BMP** images.
 3. Detect text with PaddleOCR through ONNX Runtime CPU.
 4. Review detected text and remove the original lettering with LaMa Manga or AOT-GAN.
 5. Translate with Gemini 3.1 Flash-Lite; Gemini 3.5 Flash-Lite is used only as the quota fallback.
@@ -19,7 +19,9 @@ The **Start translation** button runs the imported pages through the pipeline. E
 ## Import and export behavior
 
 - **EPUB in → EPUB out.** Page images are extracted in EPUB spine reading order. The output is rebuilt as a valid image-based EPUB containing the translated pages.
+- **CBZ in → CBZ out.** CBZ comic archives are ZIP-compatible; page images are extracted in natural filename order and exported as a standard CBZ archive.
 - **ZIP in → ZIP out.** Images are imported in natural filename order (page 1, page 2, page 10) and exported as a ZIP.
+- **Any imported source → CBZ, EPUB, PDF or ZIP.** Choose the output format from the Export Format selector. PDF is a multi-page image-based document; ZIP contains the rendered page images.
 - **Manual images → ZIP out.** You can add one image at a time or select multiple images. Images added one at a time are appended to the current manual-image chapter.
 - ZIP imports are limited to 500 MB compressed / 1 GB expanded. Individual images are limited to 100 MB and chapters to 2,000 pages.
 - Exported files are saved in the project exports folder. A Download link appears after export.
