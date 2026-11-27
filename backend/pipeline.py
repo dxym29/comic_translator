@@ -383,9 +383,9 @@ def _run_stage(stage: str, data: dict, project: dict) -> dict:
     if stage == "export":
         from .exporting import export_chapter
         output_format = str(data.get("format", "zip")).lower()
-        if output_format not in {"epub", "zip", "cbz"}:
-            raise ValueError("Export format must be EPUB, ZIP or CBZ.")
-        extension = ".epub" if output_format == "epub" else (".cbz" if output_format == "cbz" else ".zip")
+        if output_format not in {"epub", "zip", "cbz", "pdf"}:
+            raise ValueError("Export format must be EPUB, CBZ, ZIP or PDF.")
+        extension = {"epub": ".epub", "zip": ".zip", "cbz": ".cbz", "pdf": ".pdf"}[output_format]
         output_path = str(data.get("output_path") or (
             get_data_dir() / "projects" / project["id"] / "exports" /
             ("chapter-" + re.sub(r"[^0-9A-Za-z_-]", "_", str(data.get("chapter_number", "1"))) + extension)
@@ -427,16 +427,18 @@ async def import_zip(project_id: str, file: UploadFile = File(...), chapter_id: 
     _ensure_table()
     project = _project(project_id)
     filename = file.filename or "comic.zip"
-    if Path(filename).suffix.lower() != ".zip":
-        raise HTTPException(415, "Please choose a .zip file.")
+    if Path(filename).suffix.lower() not in {".zip", ".cbz"}:
+        raise HTTPException(415, "Please choose a .cbz or .zip file.")
     raw = await file.read(500 * 1024 * 1024 + 1)
     try:
         if len(raw) > 500 * 1024 * 1024:
             raise ValueError("ZIP file is larger than the 500 MB upload limit.")
         from .file_import import extract_zip
         output = extract_zip(raw, Path(project["storage_path"]), filename)
+        source_type = "cbz" if Path(filename).suffix.lower() == ".cbz" else "zip"
+        output["source_type"] = source_type
         saved = _save(project_id, chapter_id, "import", "completed",
-                      {"source_type": "zip", "filename": Path(filename).name}, output)
+                      {"source_type": source_type, "filename": Path(filename).name}, output)
         return {"run": saved, "import": output}
     except ValueError as exc:
         raise HTTPException(422, detail=str(exc)) from exc
@@ -495,7 +497,7 @@ def download_export(project_id: str, path: str):
         candidate.relative_to(root)
     except ValueError:
         raise HTTPException(403, "Export path is outside this project.")
-    if not candidate.is_file() or candidate.suffix.lower() not in {".epub", ".zip", ".cbz"}:
+    if not candidate.is_file() or candidate.suffix.lower() not in {".epub", ".zip", ".cbz", ".pdf"}:
         raise HTTPException(404, "Export file not found.")
     return FileResponse(candidate, filename=candidate.name)
 
