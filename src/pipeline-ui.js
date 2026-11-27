@@ -271,6 +271,16 @@
     updatePreviews();
     message("ပြင်ဆင်ထားတဲ့ ရလဒ်ကို သိမ်းပြီးပါပြီ။");
   }
+  function addAutoLog(level, text) {
+    const panel = $("auto-run-log");
+    if (!panel) return;
+    if (panel.textContent === "Auto Run မစရသေးပါ။") panel.textContent = "";
+    const stamp = new Date().toLocaleTimeString();
+    panel.textContent += "[" + stamp + "] [" + level + "] " + text + "\n";
+    const lines = panel.textContent.split("\n");
+    if (lines.length > 501) panel.textContent = lines.slice(-501).join("\n");
+    panel.scrollTop = panel.scrollHeight;
+  }
   async function waitIfPaused() {
     while (paused && !stopRequested) await new Promise(resolve => setTimeout(resolve, 200));
     if (stopRequested) throw new Error("ရပ်တန့်ရန် တောင်းဆိုထားသည်။");
@@ -279,6 +289,8 @@
     if (running || !pages.length) return;
     running = true; paused = false; stopRequested = false;
     renderedPages = [];
+    $("auto-run-log").textContent = "";
+    addAutoLog("INFO", "Auto Run စတင်သည်။ စာမျက်နှာ " + pages.length + " ခု။ Error တက်ပါက ထိုစာမျက်နှာကို skip လုပ်ပြီး ဆက်လက်လုပ်ဆောင်မည်။");
     $("pipeline-auto").disabled = true;
     $("pipeline-pause").disabled = false;
     $("pipeline-stop").disabled = false;
@@ -286,39 +298,83 @@
     const steps = ["extract", "remove", "translate", "typeset"];
     const total = pages.length * steps.length + 1;
     let done = 0;
+    let failedPages = 0;
+    let successfulPages = 0;
+    let exported = false;
     try {
       for (let p = 0; p < pages.length; p++) {
         await waitIfPaused();
         pageIndex = p;
-        await loadPageHistory();
         current = "extract";
-        for (const stage of steps) {
+        try {
+          await loadPageHistory();
+        } catch (error) {
+          failedPages++;
+          done += steps.length;
+          addAutoLog("ERROR", "စာမျက်နှာ " + (p + 1) + " (" + (pages[p]?.filename || pages[p]?.source_member || "page") + ") — history ဖတ်မရပါ။ Skip: " + error.message);
+          progress(done, total, "စာမျက်နှာ " + (p + 1) + " ကို skip လုပ်ပြီး နောက်စာမျက်နှာသို့ ဆက်နေသည်…", "Skip", p + 1);
+          continue;
+        }
+        let pageFailed = false;
+        for (let s = 0; s < steps.length; s++) {
           await waitIfPaused();
+          const stage = steps[s];
           current = stage;
           const stageLabel = labels[names.indexOf(stage)];
           showCurrent();
           progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " လုပ်နေသည်…", stageLabel, p + 1);
-          const input = defaultInput(stage);
-          const output = await runStage(stage, { input, silent: true, done, total });
-          done++;
-          progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " ပြီးပါပြီ။", stageLabel, p + 1);
-          if (stage === "typeset" && output.image_path) renderedPages.push({ index: p + 1, image_path: output.image_path });
+          try {
+            const input = defaultInput(stage);
+            const output = await runStage(stage, { input, silent: true, done, total });
+            done++;
+            addAutoLog("OK", "စာမျက်နှာ " + (p + 1) + " — " + stageLabel + " အောင်မြင်ပြီး သိမ်းဆည်းပြီးပါပြီ။");
+            progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " ပြီးပါပြီ။", stageLabel, p + 1);
+            if (stage === "typeset" && output.image_path) {
+              renderedPages.push({ index: p + 1, image_path: output.image_path });
+              successfulPages++;
+            }
+          } catch (error) {
+            if (stopRequested) throw error;
+            pageFailed = true;
+            failedPages++;
+            done += steps.length - s;
+            addAutoLog("ERROR", "စာမျက်နှာ " + (p + 1) + " — " + stageLabel + " မအောင်မြင်ပါ။ " + error.message);
+            addAutoLog("SKIP", "စာမျက်နှာ " + (p + 1) + ၏ ကျန်အဆင့်များကို skip လုပ်ပြီး နောက်စာမျက်နှာသို့ ဆက်မည်။");
+            progress(done, total, "စာမျက်နှာ " + (p + 1) + " အမှားရှိ၍ skip လုပ်ပြီး ဆက်နေသည်…", "Skip", p + 1);
+            break;
+          }
+        }
+        if (!pageFailed && steps.every(stage => ["completed", "reviewed"].includes(history[stage]?.status))) {
+          successfulPages++;
         }
       }
       await waitIfPaused();
       current = "export";
-      const input = await exportInput();
-      if (!input.pages.length) throw new Error("ထုတ်ရန် Typeset ပြီးသော စာမျက်နှာ မရှိပါ။");
-      $("pipeline-input").value = json(input);
-      $("pipeline-output").value = "{}";
-      showCurrent();
-      progress(done, total, "နောက်ဆုံးဖိုင်ကို Export လုပ်နေသည်…", labels[4], pages.length);
-      const output = await runStage("export", { input, silent: true });
-      done++;
-      progress(total, total, "အားလုံးပြီးပါပြီ။ " + output.page_count + " မျက်နှာ Export လုပ်ပြီးပါပြီ။", "ပြီးဆုံး", pages.length);
-      message("လုပ်ငန်းစဉ် အောင်မြင်စွာ ပြီးဆုံးပါပြီ။");
+      try {
+        const input = await exportInput();
+        if (!input.pages.length) throw new Error("ထုတ်ရန် Typeset အောင်မြင်သော စာမျက်နှာ မရှိပါ။");
+        $("pipeline-input").value = json(input);
+        $("pipeline-output").value = "{}";
+        showCurrent();
+        progress(done, total, "အောင်မြင်သော စာမျက်နှာ " + input.pages.length + " ခုကို Export လုပ်နေသည်…", labels[4], pages.length);
+        const output = await runStage("export", { input, silent: true });
+        done++;
+        exported = true;
+        addAutoLog("OK", output.page_count + " မျက်နှာကို " + (output.format || "ဖိုင်") + " အဖြစ် Export အောင်မြင်သည်။");
+        progress(total, total, "ပြီးဆုံးပါပြီ။ အောင်မြင်သော " + output.page_count + " မျက်နှာ Export လုပ်ပြီးပါပြီ။", "ပြီးဆုံး", pages.length);
+      } catch (error) {
+        if (stopRequested) throw error;
+        addAutoLog("ERROR", "Export မအောင်မြင်ပါ။ အောင်မြင်ပြီးသား page results များကို သိမ်းထားပြီးဖြစ်သည်။ " + error.message);
+      }
+      const summary = "ပြီးဆုံးပါပြီ — အောင်မြင်သော " + (renderedPages.length) + " မျက်နှာ၊ Error/Skip " + failedPages + " မျက်နှာ" + (exported ? "၊ Export အောင်မြင်" : "၊ Export မပြီးပါ") + "။";
+      addAutoLog("INFO", summary);
+      message(summary, failedPages > 0 || !exported);
+      if (!exported && renderedPages.length) {
+        progress(done, total, "စာမျက်နှာများကို သိမ်းထားပြီးဖြစ်သည်။ Export ကို ပြန်စမ်းနိုင်သည်။", "Export Error", pages.length);
+      }
     } catch (error) {
-      message(stopRequested ? "လုပ်ငန်းစဉ်ကို ရပ်ထားပါတယ်။ ပြီးပြီးသားစာမျက်နှာတွေကို သိမ်းထားပါတယ်။" : "လုပ်ဆောင်မှု မအောင်မြင်ပါ — " + error.message, !stopRequested);
+      addAutoLog("ERROR", stopRequested ? "အသုံးပြုသူက ရပ်တန့်ခဲ့သည်။ " + error.message : "လုပ်ငန်းစဉ်အတွင်း မမျှော်လင့်ထားသော error: " + error.message);
+      message(stopRequested ? "လုပ်ငန်းစဉ်ကို ရပ်ထားပါတယ်။ ပြီးပြီးသားရလဒ်တွေကို သိမ်းထားပါတယ်။" : "Auto Run အတွင်း အမှားရှိသည်။ Log ကိုစစ်ပါ။ " + error.message, true);
     } finally {
       running = false; paused = false; stopRequested = false;
       $("pipeline-pause").disabled = true;
@@ -393,6 +449,7 @@
     if (index < names.length - 1) selectStage(names[index + 1]).catch(error => message(error.message, true));
   });
   $("pipeline-auto").addEventListener("click", autoRun);
+  $("clear-auto-log").addEventListener("click", () => { $("auto-run-log").textContent = "Log ရှင်းပြီးပါပြီ။"; });
   $("pipeline-pause").addEventListener("click", () => {
     if (!running) return;
     paused = !paused;
