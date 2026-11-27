@@ -24,7 +24,7 @@
           <button class="primary-button" id="create-project">Create project <span>＋</span></button>
         </div>
         <div class="workflow">
-          <div class="workflow-step"><span>01</span><strong>Import</strong><small>EPUB, ZIP or images</small></div>
+          <div class="workflow-step"><span>01</span><strong>Import</strong><small>EPUB, CBZ, ZIP or images</small></div>
           <div class="workflow-step"><span>02</span><strong>Clean</strong><small>Detect & remove text</small></div>
           <div class="workflow-step"><span>03</span><strong>Translate</strong><small>Gemini translation</small></div>
           <div class="workflow-step"><span>04</span><strong>Typeset</strong><small>Myanmar lettering</small></div>
@@ -58,14 +58,15 @@
 
         <div class="page-navigation">
           <button id="page-previous" class="secondary-button" disabled>← ယခင်စာမျက်နှာ</button>
-          <div class="page-counter"><strong id="page-counter">No pages imported</strong><small id="page-file-name">EPUB / ZIP / Images</small></div>
+          <div class="page-counter"><strong id="page-counter">No pages imported</strong><small id="page-file-name">EPUB / CBZ / ZIP / Images</small></div>
           <button id="page-next" class="secondary-button" disabled>နောက်စာမျက်နှာ →</button>
         </div>
 
         <div class="import-actions">
           <label class="file-picker">EPUB ထည့်ရန်<input id="epub-import-file" type="file" accept=".epub,application/epub+zip"></label>
-          <label class="file-picker">ZIP ထည့်ရန်<input id="zip-import-file" type="file" accept=".zip,application/zip"></label>
+          <label class="file-picker">CBZ / ZIP ထည့်ရန်<input id="zip-import-file" type="file" accept=".cbz,.zip,application/zip,application/vnd.comicbook+zip"></label>
           <label class="file-picker">ပုံများ ထည့်ရန်<input id="images-import-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" multiple></label>
+          <label class="engine-select-label">Export Format<select id="export-format"><option value="cbz">CBZ (Comic Book)</option><option value="epub">EPUB</option><option value="pdf">PDF</option><option value="zip">ZIP (Images)</option></select></label>
           <label class="engine-select-label">စာသားဖယ်ရှားမော်ဒယ်<select id="inpainting-model"><option value="lama_manga">LaMa Manga</option><option value="aot_gan">AOT-GAN</option></select></label>
           <label class="chapter-label">Chapter ID <input id="pipeline-chapter" value="chapter-1"></label>
         </div>
