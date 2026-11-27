@@ -6,7 +6,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "start": "electron .",
-    "backend": "python -m backend",
+    "backend": "node scripts/backend.cjs",
     "dev": "concurrently -k \"npm:backend\" \"npm:start\""
   },
   "devDependencies": {
