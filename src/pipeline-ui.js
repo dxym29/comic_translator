@@ -299,7 +299,6 @@
     const total = pages.length * steps.length + 1;
     let done = 0;
     let failedPages = 0;
-    let successfulPages = 0;
     let exported = false;
     try {
       for (let p = 0; p < pages.length; p++) {
@@ -331,7 +330,6 @@
             progress(done, total, "စာမျက်နှာ " + (p + 1) + "/" + pages.length + " — " + stageLabel + " ပြီးပါပြီ။", stageLabel, p + 1);
             if (stage === "typeset" && output.image_path) {
               renderedPages.push({ index: p + 1, image_path: output.image_path });
-              successfulPages++;
             }
           } catch (error) {
             if (stopRequested) throw error;
@@ -339,13 +337,10 @@
             failedPages++;
             done += steps.length - s;
             addAutoLog("ERROR", "စာမျက်နှာ " + (p + 1) + " — " + stageLabel + " မအောင်မြင်ပါ။ " + error.message);
-            addAutoLog("SKIP", "စာမျက်နှာ " + (p + 1) + ၏ ကျန်အဆင့်များကို skip လုပ်ပြီး နောက်စာမျက်နှာသို့ ဆက်မည်။");
+            addAutoLog("SKIP", "စာမျက်နှာ " + (p + 1) + " ၏ ကျန်အဆင့်များကို skip လုပ်ပြီး နောက်စာမျက်နှာသို့ ဆက်မည်။");
             progress(done, total, "စာမျက်နှာ " + (p + 1) + " အမှားရှိ၍ skip လုပ်ပြီး ဆက်နေသည်…", "Skip", p + 1);
             break;
           }
-        }
-        if (!pageFailed && steps.every(stage => ["completed", "reviewed"].includes(history[stage]?.status))) {
-          successfulPages++;
         }
       }
       await waitIfPaused();
