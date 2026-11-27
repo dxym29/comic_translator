@@ -170,26 +170,52 @@ def _save_glossary(project_id: str, entries: list[dict]) -> list[dict]:
 
 
 def _gemini_call(key: str, parts: list[dict], temperature: float = 0.2) -> tuple[dict, str, bool]:
-    models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
+    models = [
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.8-flash",
+        "gemini-4-hydrogen",
+    ]
     attempts = []
-    for model in models:
-        response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-            json={"contents": [{"parts": parts}],
-                  "generationConfig": {"responseMimeType": "application/json", "temperature": temperature}},
-            timeout=120)
-        if response.ok:
-            body = response.json()
-            text_value = body["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(text_value), model, model != models[0]
-        detail = response.text[:1000]
-        attempts.append({"model": model, "status": response.status_code, "detail": detail})
-        quota = response.status_code == 429 or "quota" in detail.lower() or "resource_exhausted" in detail.lower()
-        if model == models[0] and quota:
-            continue
-        raise RuntimeError(f"{model} failed ({response.status_code}); fallback is quota-only. {detail}")
-    raise RuntimeError("Both Gemini models are quota limited: " + json.dumps(attempts))
+    for model_index, model in enumerate(models):
+        # Give each model one immediate retry after a short wait before moving on.
+        for attempt_number in range(1, 3):
+            try:
+                response = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                    headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                    json={"contents": [{"parts": parts}],
+                          "generationConfig": {"responseMimeType": "application/json", "temperature": temperature}},
+                    timeout=120)
+                if response.ok:
+                    body = response.json()
+                    text_value = body["candidates"][0]["content"]["parts"][0]["text"]
+                    return json.loads(text_value), model, model_index != 0
+                detail = response.text[:1000]
+                attempts.append({
+                    "model": model,
+                    "attempt": attempt_number,
+                    "status": response.status_code,
+                    "detail": detail,
+                })
+            except Exception as exc:
+                attempts.append({
+                    "model": model,
+                    "attempt": attempt_number,
+                    "error": f"{type(exc).__name__}: {str(exc)[:1000]}",
+                })
+
+            if attempt_number == 1:
+                time.sleep(2)
+
+    raise RuntimeError(
+        "All Gemini models failed after two attempts each: "
+        + json.dumps(attempts, ensure_ascii=False)
+    )
 
 
 def _image_part(image_path: str) -> list[dict]:
