@@ -69,7 +69,7 @@ def initialize_text_renderer():
 
 def render_page(image_path: str, regions: list[dict], output_path: str,
                 font_family: str = "Noto Sans Myanmar", style: str = "original_bubble",
-                font_size: int = 30, text_color: str = "#171717",
+                font_size: int = 42, text_color: str = "#171717",
                 outline_color: str = "#ffffff") -> dict[str, Any]:
     source = Path(image_path)
     if not source.is_file():
@@ -128,22 +128,39 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
     )
     rendered = 0
 
-    for item in sorted(regions, key=lambda r: int(r.get("reading_order", 0))):
+    # Accept grouped balloon regions; combine legacy line-level translations by bubble_id.
+    grouped: dict[str, dict] = {}
+    for index, item in enumerate(sorted(regions, key=lambda r: int(r.get("reading_order", 0)))):
         text = str(item.get("translated_text", item.get("translation", ""))).strip()
         if not text:
             continue
+        group_id = str(item.get("bubble_id") or item.get("id") or f"region-{index}")
+        if group_id not in grouped:
+            grouped[group_id] = dict(item)
+            grouped[group_id]["translated_text"] = text
+            grouped[group_id]["x"] = int(item.get("bubble_x", item.get("x", 0)))
+            grouped[group_id]["y"] = int(item.get("bubble_y", item.get("y", 0)))
+            grouped[group_id]["width"] = int(item.get("bubble_width", item.get("width", 0)))
+            grouped[group_id]["height"] = int(item.get("bubble_height", item.get("height", 0)))
+        elif item.get("bubble_id"):
+            grouped[group_id]["translated_text"] += " " + text
 
-        x = int(item.get("bubble_x", item.get("x", 0)))
-        y = int(item.get("bubble_y", item.get("y", 0)))
-        w = int(item.get("bubble_width", item.get("width", 0)))
-        h = int(item.get("bubble_height", item.get("height", 0)))
+    for item in sorted(grouped.values(), key=lambda r: int(r.get("reading_order", 0))):
+        text = str(item.get("translated_text", "")).strip()
+        if not text:
+            continue
+        x = int(item.get("x", 0))
+        y = int(item.get("y", 0))
+        w = int(item.get("width", 0))
+        h = int(item.get("height", 0))
         if w < 4 or h < 4 or x < 0 or y < 0 or x + w > width or y + h > height:
             continue
 
-        inset = max(2, min(w, h) // 18)
+        inset = max(3, min(w, h) // 14)
         rect = QRectF(x + inset, y + inset, max(1, w - inset * 2), max(1, h - inset * 2))
         chosen = None
-        for size in range(max(8, int(font_size)), 7, -1):
+        # Start larger and shrink only as much as needed; avoid unreadable 8px text.
+        for size in range(max(16, int(font_size)), 13, -1):
             font = QFont(family_name)
             font.setPixelSize(size)
             metrics = QFontMetricsF(font)
@@ -153,7 +170,7 @@ def render_page(image_path: str, regions: list[dict], output_path: str,
                 break
         if chosen is None:
             chosen = QFont(family_name)
-            chosen.setPixelSize(8)
+            chosen.setPixelSize(14)
 
         painter.setFont(chosen)
         if style == "professional":
