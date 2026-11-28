@@ -152,11 +152,28 @@
       const regions = history.extract?.output?.regions || [];
       const translations = history.translate?.output?.translations || [];
       const byId = new Map(translations.map(t => [String(t.id), t.text]));
+      const balloons = new Map();
+      regions.forEach((r, i) => {
+        const key = String(r.bubble_id || r.id || i + 1);
+        if (!balloons.has(key)) {
+          balloons.set(key, {
+            ...r,
+            id: key,
+            bubble_id: key,
+            x: r.bubble_x ?? r.x,
+            y: r.bubble_y ?? r.y,
+            width: r.bubble_width ?? r.width,
+            height: r.bubble_height ?? r.height,
+            translated_text: byId.get(key) || ""
+          });
+        }
+      });
       return {
         image_path: history.remove?.output?.image_path || history.extract?.output?.image_path || source,
-        regions: regions.map((r, i) => ({ ...r, translated_text: byId.get(String(r.id || i + 1)) || "" })),
+        regions: [...balloons.values()],
         font_family: window.__comicSelectedProject?.font_family || "Noto Sans Myanmar",
-        style: window.__comicSelectedProject?.typesetting_style || "original_bubble"
+        style: window.__comicSelectedProject?.typesetting_style || "original_bubble",
+        font_size: 42
       };
     }
     return {};
