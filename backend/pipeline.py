@@ -277,7 +277,7 @@ def _group_regions_for_translation(regions: list[dict]) -> list[dict]:
         else:
             line = str(region.get("text", "")).strip()
             if line:
-                grouped[bubble_id]["text"] = (grouped[bubble_id]["text"] + "\\n" + line).strip()
+                grouped[bubble_id]["text"] = (grouped[bubble_id]["text"] + "\n" + line).strip()
     return sorted(grouped.values(), key=lambda item: item["reading_order"])
 
 
