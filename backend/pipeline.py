@@ -258,13 +258,37 @@ def _name_lock_violations(items: list[dict], translations: list[dict], glossary:
     return violations
 
 
+def _group_regions_for_translation(regions: list[dict]) -> list[dict]:
+    grouped: dict[str, dict] = {}
+    for index, region in enumerate(regions):
+        bubble_id = str(region.get("bubble_id") or f"region-{region.get('id', index + 1)}")
+        if bubble_id not in grouped:
+            grouped[bubble_id] = {
+                "id": bubble_id,
+                "bubble_id": bubble_id,
+                "text": str(region.get("text", "")).strip(),
+                "x": int(region.get("bubble_x", region.get("x", 0))),
+                "y": int(region.get("bubble_y", region.get("y", 0))),
+                "width": int(region.get("bubble_width", region.get("width", 0))),
+                "height": int(region.get("bubble_height", region.get("height", 0))),
+                "reading_order": int(region.get("reading_order", index + 1)),
+                "kind": str(region.get("kind", "speech")),
+            }
+        else:
+            line = str(region.get("text", "")).strip()
+            if line:
+                grouped[bubble_id]["text"] = (grouped[bubble_id]["text"] + "\\n" + line).strip()
+    return sorted(grouped.values(), key=lambda item: item["reading_order"])
+
+
 def _gemini_translate(data: dict, project: dict) -> dict:
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         raise ValueError("Set GEMINI_API_KEY in the local environment before translation")
-    items = data.get("regions")
-    if not isinstance(items, list) or not items:
+    raw_regions = data.get("regions")
+    if not isinstance(raw_regions, list) or not raw_regions:
         raise ValueError("translate stage requires a non-empty regions array")
+    items = _group_regions_for_translation(raw_regions)
     source = project["source_language"]
     target = project["target_language"]
     project_id = project["id"]
@@ -296,20 +320,24 @@ def _gemini_translate(data: dict, project: dict) -> dict:
 
     # First pass: name-locked natural translation with visual tone selection.
     translate_prompt = (
-        "Translate this comic dialogue from " + source + " to " + target + ". "
-        "Return ONLY JSON {translations:[{id,text}], tone_summary:string}. Preserve every region id. "
-        "Use the attached comic image to understand facial expressions, body language, scene mood, relationships, "
-        "speaker status and emotional intensity. Choose natural Myanmar dialogue tone for each line: intimate, "
-        "respectful, playful, angry, fearful, teasing, formal, humble or commanding as the scene requires. "
-        "Do not apply one tone to every speaker. Keep speech concise and natural for comic bubbles. "
+        "Localize this comic from " + source + " to " + target + ". Each input region is one complete speech balloon or narration block. "
+        "Return ONLY JSON {translations:[{id,text,kind}], tone_summary:string}. Preserve every id exactly. "
+        "Read the attached comic image and use facial expressions, body language, scene mood, relationships and panel context. "
+        "Classify each region as dialogue, narration, thought, caption or sound_effect and return that value in kind. "
+        "DIALOGUE MUST SOUND LIKE REAL SPOKEN MYANMAR, not a written essay, textbook, formal report or literal English translation. "
+        "Use natural conversational word order and particles that fit the speaker and relationship. "
+        "For dialogue, NEVER use 'သည်' or '၏' as sentence-final endings. Prefer natural spoken endings such as "
+        "'တယ်', 'ပါတယ်', 'ဘူး', 'လား', 'နော်', 'ပေါ့', 'တော့', 'ကွာ', or no explicit ending when appropriate. "
+        "Do not mechanically append any ending. Match the character's age, status, emotion and intimacy. "
+        "Use 'သည်' and '၏' only for genuine narration/captions or when formal written style is truly appropriate. "
+        "Never produce 'မည်၏'. Translate each whole balloon as one coherent utterance, not fragments. "
+        "Preserve meaning, subtext, humor and emotion, but be concise enough to fit the visible balloon. "
+        "Before returning, silently review every line as a Myanmar comic editor; rewrite anything that sounds unnatural aloud. "
         "NAME LOCK IS MANDATORY: every glossary source name must use its exact target spelling; never transliterate "
         "or vary a locked name. Read the glossary carefully before translating. "
-        "For Myanmar prose, vary sentence endings naturally. Do not end every prose sentence with 'သည်'; use "
-        "'၏' regularly where grammatically and stylistically natural, and also use other natural endings as context "
-        "requires. Never produce the awkward ending 'မည်၏'. Avoid repetitive mechanical wording. "
-        "Do not explain, add notes, or include source-language text unless it is a proper name required by glossary.\n"
-        "PROJECT GLOSSARY:\n" + glossary_text +
-        "\nSOURCE REGIONS:\n" + json.dumps(items, ensure_ascii=False)
+        "Do not include source-language text unless it is a proper name required by glossary.\\n"
+        "PROJECT GLOSSARY:\\n" + glossary_text +
+        "\\nSOURCE BALLOONS:\\n" + json.dumps(items, ensure_ascii=False)
     )
     translated_result, model, fallback_used = _gemini_call(
         key, [{"text": translate_prompt}] + image_parts, 0.25)
@@ -331,7 +359,7 @@ def _gemini_translate(data: dict, project: dict) -> dict:
             "NEUTRAL TRANSLATE RETRY. The previous translation failed name-lock validation. "
             "Translate the source regions again from " + source + " to " + target + ". "
             "This is a strict correction pass, not a creative rewrite. Return ONLY JSON "
-            "{translations:[{id,text}],tone_summary:string}. Preserve all ids exactly. "
+            "{translations:[{id,text,kind}],tone_summary:string}. Preserve all ids exactly. "
             "You MUST read and apply every glossary mapping exactly. Do not invent, alter, shorten, "
             "or re-transliterate any locked name. Copy the exact Myanmar target spelling wherever that "
             "source name or alias appears. Preserve meaning and use natural scene-appropriate Myanmar dialogue. "
@@ -402,7 +430,7 @@ def _run_stage(stage: str, data: dict, project: dict) -> dict:
             str(data.get("image_path", "")), data.get("regions", []), output_path,
             font_family=str(data.get("font_family") or project.get("font_family") or "Noto Sans Myanmar"),
             style=str(data.get("style") or project.get("typesetting_style") or "original_bubble"),
-            font_size=int(data.get("font_size", 30)),
+            font_size=int(data.get("font_size", 42)),
             text_color=str(data.get("text_color", "#171717")),
             outline_color=str(data.get("outline_color", "#ffffff")),
         )
