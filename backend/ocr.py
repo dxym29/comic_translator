@@ -140,7 +140,75 @@ def recognize_image(image: np.ndarray, language: str = "en") -> list[dict]:
 
     # Stable top-to-bottom, then left-to-right order for English reading flow.
     regions.sort(key=lambda item: (item["y"] + item["height"] / 2, item["x"]))
-    for index, region in enumerate(regions):
-        region["index"] = index
-        region["reading_order"] = index + 1
+
+    # OCR detects individual text lines, not whole speech balloons. Group nearby
+    # vertically stacked lines for translation and lettering, while preserving
+    # tight x/y/width/height boxes for text removal.
+    count = len(regions)
+    parent = list(range(count))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        root_left, root_right = find(left), find(right)
+        if root_left != root_right:
+            parent[root_right] = root_left
+
+    for left in range(count):
+        a = regions[left]
+        ax1, ay1 = a["x"], a["y"]
+        ax2, ay2 = ax1 + a["width"], ay1 + a["height"]
+        acx = (ax1 + ax2) / 2
+        for right in range(left + 1, count):
+            b = regions[right]
+            bx1, by1 = b["x"], b["y"]
+            bx2, by2 = bx1 + b["width"], by1 + b["height"]
+            if by1 - ay2 > max(24, int(max(a["height"], b["height"]) * 1.8)):
+                break
+            vertical_gap = max(0, max(ay1, by1) - min(ay2, by2))
+            max_height = max(a["height"], b["height"])
+            if vertical_gap > max(18, int(max_height * 1.6)):
+                continue
+            overlap = max(0, min(ax2, bx2) - max(ax1, bx1))
+            overlap_ratio = overlap / max(1, min(a["width"], b["width"]))
+            bcx = (bx1 + bx2) / 2
+            center_limit = max(24, int(max(a["width"], b["width"]) * 0.45))
+            if overlap_ratio >= 0.28 or abs(acx - bcx) <= center_limit:
+                union(left, right)
+
+    clusters: dict[int, list[int]] = {}
+    for index in range(count):
+        clusters.setdefault(find(index), []).append(index)
+
+    ordered_clusters = sorted(
+        clusters.values(),
+        key=lambda members: min(
+            (regions[i]["y"] + regions[i]["height"] / 2, regions[i]["x"])
+            for i in members
+        ),
+    )
+    for bubble_number, members in enumerate(ordered_clusters, start=1):
+        x1 = min(regions[i]["x"] for i in members)
+        y1 = min(regions[i]["y"] for i in members)
+        x2 = max(regions[i]["x"] + regions[i]["width"] for i in members)
+        y2 = max(regions[i]["y"] + regions[i]["height"] for i in members)
+        line_height = max(regions[i]["height"] for i in members)
+        pad_x = max(12, int(line_height * 1.15))
+        pad_y = max(8, int(line_height * 0.65))
+        bubble_x = max(0, x1 - pad_x)
+        bubble_y = max(0, y1 - pad_y)
+        bubble_x2 = min(int(image.shape[1]), x2 + pad_x)
+        bubble_y2 = min(int(image.shape[0]), y2 + pad_y)
+        for index in members:
+            regions[index]["index"] = index
+            regions[index]["reading_order"] = index + 1
+            regions[index]["bubble_id"] = f"bubble-{bubble_number}"
+            regions[index]["bubble_x"] = bubble_x
+            regions[index]["bubble_y"] = bubble_y
+            regions[index]["bubble_width"] = max(1, bubble_x2 - bubble_x)
+            regions[index]["bubble_height"] = max(1, bubble_y2 - bubble_y)
     return regions
