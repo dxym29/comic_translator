@@ -357,17 +357,18 @@ def _gemini_translate(data: dict, project: dict) -> dict:
         neutral_used = True
         neutral_prompt = (
             "NEUTRAL TRANSLATE RETRY. The previous translation failed name-lock validation. "
-            "Translate the source regions again from " + source + " to " + target + ". "
+            "Translate the source balloons again from " + source + " to " + target + ". "
             "This is a strict correction pass, not a creative rewrite. Return ONLY JSON "
             "{translations:[{id,text,kind}],tone_summary:string}. Preserve all ids exactly. "
             "You MUST read and apply every glossary mapping exactly. Do not invent, alter, shorten, "
             "or re-transliterate any locked name. Copy the exact Myanmar target spelling wherever that "
-            "source name or alias appears. Preserve meaning and use natural scene-appropriate Myanmar dialogue. "
-            "Vary prose endings; do not use 'သည်' mechanically, use '၏' naturally and regularly where suitable, "
-            "and never end with 'မည်၏'. No explanations.\n"
-            "LOCKED PROJECT GLOSSARY:\n" + glossary_text +
-            "\nVALIDATION FAILURES TO CORRECT:\n" + json.dumps(violations, ensure_ascii=False) +
-            "\nSOURCE REGIONS:\n" + json.dumps(items, ensure_ascii=False)
+            "source name or alias appears. Rewrite dialogue as natural spoken Myanmar; never end dialogue "
+            "with 'သည်' or '၏'. Use conversational endings only where they sound natural. Keep narration "
+            "and captions distinct. Preserve meaning, keep each balloon concise, and never end with 'မည်၏'. "
+            "No explanations.\\n"
+            "LOCKED PROJECT GLOSSARY:\\n" + glossary_text +
+            "\\nVALIDATION FAILURES TO CORRECT:\\n" + json.dumps(violations, ensure_ascii=False) +
+            "\\nSOURCE BALLOONS:\\n" + json.dumps(items, ensure_ascii=False)
         )
         retry_result, retry_model, retry_fallback = _gemini_call(
             key, [{"text": neutral_prompt}] + image_parts, 0.15)
